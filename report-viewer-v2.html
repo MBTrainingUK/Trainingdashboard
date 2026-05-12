@@ -171,6 +171,9 @@
       font-weight: 600; border: 1px solid var(--border) !important;
       position: sticky; left: 0; z-index: 1;
     }
+    .heatmap-table .hm-year .hm-week {
+      background: #12274e !important; color: #8aacf5 !important;
+    }
     .heatmap-table thead th:first-child { z-index: 3; }
     .heatmap-table tbody tr:hover td { filter: brightness(1.12); }
     .hm-year td { border-top: 2px solid var(--border) !important; }
@@ -271,6 +274,13 @@
 
   <!-- ROOMS TAB -->
   <div id="tab-rooms" class="tab-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <span style="font-size:.85rem;color:var(--muted)">KPIs, charts and tables update together — heatmap always shows full year</span>
+      <div class="view-toggle" id="roomPeriodToggle">
+        <button class="active" onclick="setRoomView('ytd',this)">Jan – End of Month</button>
+        <button onclick="setRoomView('full',this)">Full Year</button>
+      </div>
+    </div>
     <div id="roomKpis" class="kpi-grid"></div>
     <div class="section">
       <div class="section-header">
@@ -283,12 +293,9 @@
     </div>
     <hr class="section-divider" />
     <div class="section">
-      <div class="section-header" style="justify-content:space-between">
+      <div class="section-header">
         <h3>Room Utilisation</h3>
-        <div class="view-toggle" id="roomPeriodToggle">
-          <button class="active" onclick="setRoomView('ytd',this)">Jan – End of Month</button>
-          <button onclick="setRoomView('full',this)">Full Year</button>
-        </div>
+        <span class="pill" id="roomViewPill">Jan – End of Month</span>
       </div>
       <div class="chart-card" style="margin-bottom:24px">
         <h4 id="roomYTDSubtitle">Booked vs available days</h4>
@@ -300,7 +307,7 @@
       </div>
     </div>
     <div class="section">
-      <div class="section-header"><h3>Room Detail Table (YTD)</h3></div>
+      <div class="section-header"><h3>Room Detail</h3><span class="pill" id="roomDetailPill">Jan – End of Month</span></div>
       <div class="table-wrap"><table id="tableRooms"></table></div>
     </div>
     <div class="section">
@@ -601,12 +608,53 @@ function buildDashboard(data, schedData = []) {
   const endOfMonth = new Date(now.getFullYear(), todayMonth + 1, 0);
   const periodLabel = endOfMonth.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
 
-  document.getElementById('dashKpis').innerHTML = `
-    <div class="kpi accent"><div class="label">Team Days YTD</div><div class="value" style="color:var(--accent)">${ytdTotal}</div><div class="sub">Jan – ${periodLabel}</div></div>
-    <div class="kpi green"><div class="label">vs Target</div><div class="value" style="color:var(--green)">${pctVsTarget}%</div><div class="sub">YTD team target: ${teamTarget} days (${trainers.length} trainers × ${activeMonths} months)</div></div>
-    <div class="kpi orange"><div class="label">Avg per Trainer</div><div class="value" style="color:var(--orange)">${avgPerTrainer}</div><div class="sub">YTD days / ${trainers.length} trainers</div></div>
-    <div class="kpi"><div class="label">Individual Target YTD</div><div class="value">${perTrainerTarget}</div><div class="sub">${TRAINER_MONTHLY_TARGET} days × ${activeMonths} months (Jan – ${MONTHS[todayMonth]})</div></div>
-  `;
+  // ── Utilisation KPI builder (responds to YTD/Full Year toggle)
+  function buildUtilisationKpis(trainingDays, actCountsSrc, unassignedSrc, activeMonthCount) {
+    // Sum all activity days across all trainers
+    const activityDays = Object.values(actCountsSrc)
+      .reduce((sum, trainerMap) => sum + Object.values(trainerMap).reduce((s, v) => s + v, 0), 0);
+    const unassignedDays = Object.values(unassignedSrc).reduce((s, v) => s + v, 0);
+    const totalDays = trainingDays + activityDays + unassignedDays;
+
+    const trainingPct  = totalDays > 0 ? (trainingDays  / totalDays * 100) : 0;
+    const activityPct  = totalDays > 0 ? (activityDays  / totalDays * 100) : 0;
+    const unassignedPct = totalDays > 0 ? (unassignedDays / totalDays * 100) : 0;
+    const utilisedPct  = trainingPct + activityPct;
+
+    const perTrainerTarget = activeMonthCount * TRAINER_MONTHLY_TARGET;
+    const teamTarget = perTrainerTarget * trainers.length;
+    const pctVsTarget = teamTarget > 0 ? (trainingDays / teamTarget * 100).toFixed(0) : 0;
+    const avgPerTrainer = trainers.length > 0 ? (trainingDays / trainers.length).toFixed(1) : 0;
+
+    document.getElementById('dashKpis').innerHTML = `
+      <div class="kpi accent">
+        <div class="label">Team Training Days</div>
+        <div class="value" style="color:var(--accent)">${trainingDays}</div>
+        <div class="sub">${trainers.length} trainers &nbsp;·&nbsp; avg ${avgPerTrainer} days each</div>
+        <div class="sub" style="margin-top:4px">vs target ${teamTarget} &nbsp;<span style="color:${Number(pctVsTarget)>=100?'var(--green)':'var(--red)'};font-weight:700">${pctVsTarget}%</span></div>
+      </div>
+      <div class="kpi" style="border-color:#3ecf8e44">
+        <div class="label">Training %</div>
+        <div class="value" style="color:#3ecf8e">${trainingPct.toFixed(1)}%</div>
+        <div class="sub">${trainingDays} training days of ${totalDays} total</div>
+      </div>
+      <div class="kpi" style="border-color:#f5c84244">
+        <div class="label">Other Activities %</div>
+        <div class="value" style="color:#f5c842">${activityPct.toFixed(1)}%</div>
+        <div class="sub">${activityDays} activity days of ${totalDays} total</div>
+      </div>
+      <div class="kpi" style="border-color:#e05c5c44">
+        <div class="label">Unassigned %</div>
+        <div class="value" style="color:#e05c5c">${unassignedPct.toFixed(1)}%</div>
+        <div class="sub">${unassignedDays} days with no booking</div>
+      </div>
+      <div class="kpi" style="border-color:#5b8dee44;background:rgba(91,141,238,0.06)">
+        <div class="label">Overall Utilised %</div>
+        <div class="value" style="color:#5b8dee">${utilisedPct.toFixed(1)}%</div>
+        <div class="sub">Training + Activities &nbsp;·&nbsp; ${trainingDays + activityDays} of ${totalDays} days</div>
+      </div>
+    `;
+  }
 
   // ── Trainer cards
   const fullYearByTrainer = {};
@@ -652,7 +700,8 @@ function buildDashboard(data, schedData = []) {
     rows: monthlyRows, trainers, todayMonth, cumRows,
     ytdRow, actTrainers,
     activityCounts, activityCountsYTD,
-    unassignedCounts, unassignedCountsYTD
+    unassignedCounts, unassignedCountsYTD,
+    activeMonths
   };
 
   const trainerTargetLine = makeTargetLine(
@@ -738,6 +787,14 @@ function buildDashboard(data, schedData = []) {
       trainingTotal,
       mode
     );
+
+    // Utilisation KPIs
+    buildUtilisationKpis(
+      trainingTotal,
+      isYTD ? s.activityCountsYTD : s.activityCounts,
+      isYTD ? s.unassignedCountsYTD : s.unassignedCounts,
+      isYTD ? s.activeMonths : 12
+    );
   };
 
   document.getElementById('chartMonthlySubtitle').textContent = 'Trainer Days — Monthly | full year';
@@ -746,6 +803,7 @@ function buildDashboard(data, schedData = []) {
   buildMonthlyTable(monthlyRows, ytdRow);
   const fullYearTrainingTotal = monthlyRows.reduce((s, r) => s + r.total, 0);
   buildActivitiesSection(activityCounts, unassignedCounts, fullYearTrainingTotal, 'full');
+  buildUtilisationKpis(fullYearTrainingTotal, activityCounts, unassignedCounts, 12);
   // Default to Full Year
   document.querySelectorAll('#monthlyToggle button').forEach((b, i) => b.classList.toggle('active', i === 1));
 
@@ -1135,41 +1193,7 @@ function buildRooms(data, roomsRawData) {
     return { ...r, ytdBooked: booked, ytdUnalloc: unalloc, ytdPct: utilisation(booked, unalloc) };
   });
 
-  const ytdTotals = sumBookedUnalloc(rooms, passedMonths);
-  const overallPct = utilisation(ytdTotals.booked, ytdTotals.unalloc);
-
-  const sortedByPct = [...rooms].sort((a, b) => b.pctYTD - a.pctYTD);
-  const bestRoom  = sortedByPct[0];
-  const worstRoom = sortedByPct[sortedByPct.length - 1];
-
-  const pctDiff      = overallPct - TARGET_PCT;
-  const pctDiffStr   = (pctDiff >= 0 ? '+' : '') + (pctDiff * 100).toFixed(1) + '%';
-  const pctDiffColor = pctDiff >= 0 ? 'var(--green)' : 'var(--red)';
-  const pctDiffLabel = pctDiff >= 0 ? 'above target' : 'below target';
-
-  const ytdAvailable = ytdTotals.booked + ytdTotals.unalloc;
-  const targetDays    = Math.round(ytdAvailable * TARGET_PCT);
-  const daysDiff      = ytdTotals.booked - targetDays;
-  const daysDiffStr   = (daysDiff >= 0 ? '+' : '') + daysDiff + ' days';
-  const daysDiffColor = daysDiff >= 0 ? 'var(--green)' : 'var(--red)';
-  const daysDiffLabel = daysDiff >= 0 ? 'above target' : 'below target';
-
-  document.getElementById('roomKpis').innerHTML = `
-    <div class="kpi accent">
-      <div class="label">Overall Utilisation</div>
-      <div class="value" style="color:var(--accent)">${(overallPct * 100).toFixed(1)}%</div>
-      <div class="sub">${periodLabel}</div>
-      <div class="sub" style="margin-top:6px">vs 66% target &nbsp;<span style="color:${pctDiffColor};font-weight:700">${pctDiffStr} ${pctDiffLabel}</span></div>
-    </div>
-    <div class="kpi green">
-      <div class="label">Total Booked Days</div>
-      <div class="value" style="color:var(--green)">${ytdTotals.booked}</div>
-      <div class="sub">${periodLabel}</div>
-      <div class="sub" style="margin-top:6px">Target: ${targetDays} days &nbsp;<span style="color:${daysDiffColor};font-weight:700">${daysDiffStr} ${daysDiffLabel}</span></div>
-    </div>
-    <div class="kpi orange"><div class="label">Best Room</div><div class="value" style="color:var(--orange);font-size:1.4rem">${bestRoom?.name || '—'}</div><div class="sub">${((bestRoom?.pctYTD || 0) * 100).toFixed(1)}% utilised</div></div>
-    <div class="kpi red"><div class="label">Worst Room</div><div class="value" style="color:var(--red);font-size:1.4rem">${worstRoom?.name || '—'}</div><div class="sub">${((worstRoom?.pctYTD || 0) * 100).toFixed(1)}% utilised</div></div>
-  `;
+  // KPIs rebuilt inside buildRoomCharts on every toggle.
 
   // ── Restore canonical room order
   rooms.sort((a, b) => ROOM_ORDER.indexOf(a.name) - ROOM_ORDER.indexOf(b.name));
@@ -1189,8 +1213,44 @@ function buildRooms(data, roomsRawData) {
     const { rooms, months } = state.rooms;
     const scopedMonths = mode === 'ytd' ? passedMonths : months;
     const subtitle = mode === 'ytd' ? periodLabel : 'Full Year';
+    const pillText = mode === 'ytd' ? `Jan – ${periodLabel}` : 'Full Year';
+    document.getElementById('roomViewPill').textContent   = pillText;
+    document.getElementById('roomDetailPill').textContent = pillText;
     document.getElementById('roomYTDSubtitle').textContent     = `Booked vs available days (${subtitle})`;
     document.getElementById('roomMonthlySubtitle').textContent = `Monthly utilisation % by room (${subtitle})`;
+
+    // Rebuild KPI boxes for the selected period
+    const scopedKpiTotals = sumBookedUnalloc(rooms, scopedMonths);
+    const scopedOverallKpiPct = utilisation(scopedKpiTotals.booked, scopedKpiTotals.unalloc);
+    const scopedSortedByPct = rooms.map(r => ({ ...r, _pct: utilisation(sumBookedUnalloc([r], scopedMonths).booked, sumBookedUnalloc([r], scopedMonths).unalloc) })).sort((a,b) => b._pct - a._pct);
+    const scopedBest  = scopedSortedByPct[0];
+    const scopedWorst = scopedSortedByPct[scopedSortedByPct.length - 1];
+    const scopedPctDiff = scopedOverallKpiPct - TARGET_PCT;
+    const scopedPctDiffStr = (scopedPctDiff >= 0 ? '+' : '') + (scopedPctDiff * 100).toFixed(1) + '%';
+    const scopedPctDiffColor = scopedPctDiff >= 0 ? 'var(--green)' : 'var(--red)';
+    const scopedPctDiffLabel = scopedPctDiff >= 0 ? 'above target' : 'below target';
+    const scopedAvailable = scopedKpiTotals.booked + scopedKpiTotals.unalloc;
+    const scopedTargetDays = Math.round(scopedAvailable * TARGET_PCT);
+    const scopedDaysDiff = scopedKpiTotals.booked - scopedTargetDays;
+    const scopedDaysDiffStr = (scopedDaysDiff >= 0 ? '+' : '') + scopedDaysDiff + ' days';
+    const scopedDaysDiffColor = scopedDaysDiff >= 0 ? 'var(--green)' : 'var(--red)';
+    const scopedDaysDiffLabel = scopedDaysDiff >= 0 ? 'above target' : 'below target';
+    document.getElementById('roomKpis').innerHTML = `
+      <div class="kpi accent">
+        <div class="label">Overall Utilisation</div>
+        <div class="value" style="color:var(--accent)">${(scopedOverallKpiPct * 100).toFixed(1)}%</div>
+        <div class="sub">${subtitle}</div>
+        <div class="sub" style="margin-top:6px">vs 66% target &nbsp;<span style="color:${scopedPctDiffColor};font-weight:700">${scopedPctDiffStr} ${scopedPctDiffLabel}</span></div>
+      </div>
+      <div class="kpi green">
+        <div class="label">Total Booked Days</div>
+        <div class="value" style="color:var(--green)">${scopedKpiTotals.booked}</div>
+        <div class="sub">${subtitle}</div>
+        <div class="sub" style="margin-top:6px">Target: ${scopedTargetDays} days &nbsp;<span style="color:${scopedDaysDiffColor};font-weight:700">${scopedDaysDiffStr} ${scopedDaysDiffLabel}</span></div>
+      </div>
+      <div class="kpi orange"><div class="label">Best Room</div><div class="value" style="color:var(--orange);font-size:1.4rem">${scopedBest?.name || '—'}</div><div class="sub">${((scopedBest?._pct || 0) * 100).toFixed(1)}% utilised</div></div>
+      <div class="kpi red"><div class="label">Worst Room</div><div class="value" style="color:var(--red);font-size:1.4rem">${scopedWorst?.name || '—'}</div><div class="sub">${((scopedWorst?._pct || 0) * 100).toFixed(1)}% utilised</div></div>
+    `;
 
     // Stacked bar: booked vs unallocated per room
     const bookedData  = rooms.map(r => sumBookedUnalloc([r], scopedMonths).booked);

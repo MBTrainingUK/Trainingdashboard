@@ -1295,10 +1295,9 @@ function buildRooms(data, roomsRawData) {
   function buildRoomCharts(mode) {
     const { rooms, months } = state.rooms;
     const scopedMonths = mode === 'ytd' ? passedMonths : months;
-    const subtitle = mode === 'ytd' ? periodLabel : 'Full Year';
-    const pillText = mode === 'ytd' ? `Jan – ${periodLabel}` : 'Full Year';
-    document.getElementById('roomViewPill').textContent   = pillText;
-    document.getElementById('roomDetailPill').textContent = pillText;
+    const subtitle = mode === 'ytd' ? `Jan – ${periodLabel}` : 'Full Year';
+    document.getElementById('roomViewPill').textContent   = subtitle;
+    document.getElementById('roomDetailPill').textContent = subtitle;
     document.getElementById('roomYTDSubtitle').textContent     = `Booked vs available days (${subtitle})`;
     document.getElementById('roomMonthlySubtitle').textContent = `Monthly utilisation % by room (${subtitle})`;
 

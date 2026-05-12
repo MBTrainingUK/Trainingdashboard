@@ -1261,7 +1261,7 @@ function buildRooms(data, roomsRawData) {
   const now = new Date();
   const todayIdx = now.getMonth();
   const endOfMonth = new Date(now.getFullYear(), todayIdx + 1, 0);
-  const periodLabel = '1 Jan\u2013' + endOfMonth.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  const periodLabel = endOfMonth.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
   const passedMonths = months.filter(m => MONTHS.indexOf(m.month) <= todayIdx);
 
   // Reusable period sum for any (rooms subset, month subset)

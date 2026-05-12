@@ -735,10 +735,20 @@ function buildDashboard(data, schedData = []) {
         plugins: {
           legend: { position: 'top', labels: { font: { size: 26 } } },
           datalabels: {
-            anchor: 'end', align: 'end',
-            color: '#e8eaf6', font: { size: 22, weight: '600' },
-            formatter: v => v > 0 ? v : '',
-            offset: -2
+            labels: {
+              value: {
+                anchor: 'end', align: 'end',
+                color: '#e8eaf6', font: { size: 22, weight: '600' },
+                formatter: v => v > 0 ? v : '',
+                offset: -2
+              },
+              name: {
+                anchor: 'center', align: 'center',
+                rotation: -90,
+                color: '#fff', font: { size: 18, weight: '700' },
+                formatter: (v, ctx) => v >= 3 ? ctx.dataset.label.split(' ').pop() : ''
+              }
+            }
           }
         },
         scales: {

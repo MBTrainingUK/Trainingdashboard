@@ -237,8 +237,8 @@
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <span style="font-size:.85rem;color:var(--muted)">All charts and tables update together</span>
       <div class="view-toggle" id="monthlyToggle">
-        <button onclick="setMonthlyView('ytd',this)">YTD</button>
-        <button class="active" onclick="setMonthlyView('full',this)">Full Year</button>
+        <button class="active" onclick="setMonthlyView('ytd',this)">YTD</button>
+        <button onclick="setMonthlyView('full',this)">Full Year</button>
       </div>
     </div>
     <div id="dashKpis" class="kpi-grid"></div>
@@ -380,7 +380,6 @@ function processFile(file) {
       const dashSheet = wb.Sheets['Dashboard (2026)'];
       const roomSheet = wb.Sheets['Room Utilisation (2026)'];
       const roomsRawSheet = wb.Sheets['Rooms (2026)'];
-      const courseSheet  = wb.Sheets['Course Analysis (2026)'];
       const schedSheet   = wb.Sheets['Schedule 2026'];
       if (!dashSheet || !roomSheet) {
         alert('Could not find "Dashboard (2026)" or "Room Utilisation (2026)" sheets. Please check you are loading the correct TechnicalTrainingSchedule file.');
@@ -391,7 +390,6 @@ function processFile(file) {
       const dashData      = sheetToGrid(dashSheet);
       const roomData      = sheetToGrid(roomSheet);
       const roomsRawData  = roomsRawSheet ? sheetToGrid(roomsRawSheet) : [];
-      const courseData    = courseSheet  ? sheetToGrid(courseSheet)  : [];
       const schedData     = schedSheet   ? sheetToGrid(schedSheet)   : [];
 
       document.getElementById('fileLabel').textContent = file.name.replace(/\.xlsx?$/,'');
@@ -811,17 +809,12 @@ function buildDashboard(data, schedData = []) {
     );
   };
 
-  document.getElementById('chartMonthlySubtitle').textContent = 'Trainer Days — Monthly | full year';
-  buildMonthlyChart(monthlyRows);
-  buildCumulativeChart(cumRows, todayMonth);
-  buildMonthlyTable(monthlyRows, ytdRow);
-  // Default to YTD — filter and rebuild everything
+  // Default to YTD on load
   const ytdMonthlyRows = monthlyRows.filter(r => MONTHS.indexOf(r.month) <= todayMonth);
   const ytdCumRows     = cumRows.filter(r => MONTHS.indexOf(r.month) <= todayMonth);
   const ytdTrainingTotal = ytdMonthlyRows.reduce((s, r) => s + r.total, 0);
   buildActivitiesSection(activityCountsYTD, unassignedCountsYTD, ytdTrainingTotal, 'ytd');
   buildUtilisationKpis(ytdTrainingTotal, activityCountsYTD, unassignedCountsYTD, activeMonths);
-  document.querySelectorAll('#monthlyToggle button').forEach((b, i) => b.classList.toggle('active', i === 0));
   buildMonthlyChart(ytdMonthlyRows);
   buildCumulativeChart(ytdCumRows, todayMonth);
   buildMonthlyTable(ytdMonthlyRows, null);
@@ -925,7 +918,7 @@ function buildDashboard(data, schedData = []) {
   function trainingCell(val, target) {
     const v = num(val);
     const pct = target > 0 ? v / target : 0;
-    const color = pct >= 1 ? '#3ecf8e' : pct >= 0.7 ? '#f5c842' : pct >= 0.5 ? '#f5a623' : pct > 0 ? '#e05c5c' : '#e05c5c';
+    const color = pct >= 1 ? '#3ecf8e' : pct >= 0.7 ? '#f5c842' : pct >= 0.5 ? '#f5a623' : '#e05c5c';
     const dot = v === 0
       ? `<span style="color:#3a3f58;font-size:.85rem">—</span>`
       : `<span style="display:inline-flex;align-items:center;gap:5px">
@@ -1282,12 +1275,6 @@ function buildRooms(data, roomsRawData) {
     });
     return { booked, unalloc };
   }
-
-  // ── YTD per-room stats (consistent with TOTAL row & KPI boxes)
-  const roomYTDStats = rooms.map(r => {
-    const { booked, unalloc } = sumBookedUnalloc([r], passedMonths);
-    return { ...r, ytdBooked: booked, ytdUnalloc: unalloc, ytdPct: utilisation(booked, unalloc) };
-  });
 
   // KPIs rebuilt inside buildRoomCharts on every toggle.
 

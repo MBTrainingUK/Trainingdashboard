@@ -815,11 +815,20 @@ function buildDashboard(data, schedData = []) {
   buildMonthlyChart(monthlyRows);
   buildCumulativeChart(cumRows, todayMonth);
   buildMonthlyTable(monthlyRows, ytdRow);
-  const fullYearTrainingTotal = monthlyRows.reduce((s, r) => s + r.total, 0);
-  buildActivitiesSection(activityCounts, unassignedCounts, fullYearTrainingTotal, 'full');
-  buildUtilisationKpis(fullYearTrainingTotal, activityCounts, unassignedCounts, 12);
-  // Default to Full Year
-  document.querySelectorAll('#monthlyToggle button').forEach((b, i) => b.classList.toggle('active', i === 1));
+  // Default to YTD — filter and rebuild everything
+  const ytdMonthlyRows = monthlyRows.filter(r => MONTHS.indexOf(r.month) <= todayMonth);
+  const ytdCumRows     = cumRows.filter(r => MONTHS.indexOf(r.month) <= todayMonth);
+  const ytdTrainingTotal = ytdMonthlyRows.reduce((s, r) => s + r.total, 0);
+  buildActivitiesSection(activityCountsYTD, unassignedCountsYTD, ytdTrainingTotal, 'ytd');
+  buildUtilisationKpis(ytdTrainingTotal, activityCountsYTD, unassignedCountsYTD, activeMonths);
+  document.querySelectorAll('#monthlyToggle button').forEach((b, i) => b.classList.toggle('active', i === 0));
+  buildMonthlyChart(ytdMonthlyRows);
+  buildCumulativeChart(ytdCumRows, todayMonth);
+  buildMonthlyTable(ytdMonthlyRows, null);
+  const _monthLabel = 'end of ' + MONTHS[todayMonth];
+  document.getElementById('dashViewPill').textContent = `YTD (Jan – ${_monthLabel})`;
+  document.getElementById('chartMonthlySubtitle').textContent = `Trainer Days — Monthly | Jan to ${_monthLabel}`;
+  document.getElementById('chartCumulativeSubtitle').textContent = `Cumulative trainer days vs rolling target — Jan to ${_monthLabel}`;
 
   // ── Cumulative line chart
   function buildCumulativeChart(rows, todayMonthIdx) {
@@ -1036,17 +1045,35 @@ function buildDashboard(data, schedData = []) {
     });
 
     // Table
+    // Pre-compute row max for bar scaling (per row, across all trainers)
+    const rowMaxes = rows.map(r => Math.max(...actTrainers.map(t => r[t] || 0), 1));
+
+    function barCell(val, rowMax) {
+      const v = val || 0;
+      if (v === 0) return `<td style="text-align:center;color:var(--muted)">0</td>`;
+      const pct = Math.round((v / rowMax) * 100);
+      // Colour: single brand blue regardless of value
+      const color = '#0078D6';
+      const bg = '#0078D622';
+      return `<td style="padding:4px 8px">
+        <div style="position:relative;background:${bg};border-radius:4px;overflow:hidden;min-width:48px">
+          <div style="width:${pct}%;background:${color};opacity:0.35;height:24px;border-radius:4px;position:absolute;top:0;left:0"></div>
+          <span style="position:relative;display:block;text-align:center;line-height:24px;font-size:.85rem;font-weight:600;color:${color}">${v}</span>
+        </div>
+      </td>`;
+    }
+
     document.getElementById('tableActivities').innerHTML = `<thead><tr>
       <th style="text-align:left">Activity</th>
       ${actTrainers.map(t => `<th style="text-align:center">${t}</th>`).join('')}
       <th style="text-align:center">Total Team</th>
     </tr></thead><tbody>
-    ${rows.map(r => {
+    ${rows.map((r, ri) => {
       const isUnassigned = r.activity === 'Unassigned';
       const rowStyle = isUnassigned ? ' style="background:rgba(94,108,180,0.12);border-top:1px solid var(--border)"' : '';
       return `<tr${rowStyle}>
       <td>${r.activity}${isUnassigned ? ' <span style="font-size:.7rem;color:var(--muted);font-style:italic">(from schedule)</span>' : ''}</td>
-      ${actTrainers.map(t => `<td style="text-align:center">${r[t] || 0}</td>`).join('')}
+      ${actTrainers.map(t => barCell(r[t], rowMaxes[ri])).join('')}
       <td style="text-align:center;color:var(--accent);font-weight:600">${r.total}</td>
     </tr>`;
     }).join('')}
@@ -1389,12 +1416,21 @@ function buildRooms(data, roomsRawData) {
       options: {
         responsive: true,
         plugins: {
-          legend: { position: 'bottom', labels: { font: { size: 26 }, padding: 20 } },
+          legend: { display: false },
           tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}%` } },
           datalabels: {
-            anchor: 'end', align: 'end', rotation: -90, offset: 4,
-            color: '#e8eaf6', font: { size: 22, weight: '700' },
-            formatter: v => v !== null ? v + '%' : ''
+            labels: {
+              value: {
+                anchor: 'end', align: 'end', rotation: -90, offset: 4,
+                color: '#e8eaf6', font: { size: 22, weight: '700' },
+                formatter: v => v !== null ? v + '%' : ''
+              },
+              name: {
+                anchor: 'center', align: 'center', rotation: -90,
+                color: '#fff', font: { size: 18, weight: '700' },
+                formatter: (v, ctx) => v !== null && v >= 15 ? ctx.dataset.label : ''
+              }
+            }
           }
         },
         layout: { padding: { top: 60, right: 130 } },

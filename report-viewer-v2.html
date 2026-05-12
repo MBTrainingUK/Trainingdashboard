@@ -788,7 +788,7 @@ function buildDashboard(data, schedData = []) {
     buildMonthlyChart(filteredMonthly);
 
     // Cumulative chart
-    buildCumulativeChart(filteredCum);
+    buildCumulativeChart(filteredCum, s.todayMonth);
 
     // Monthly table (YTD: only show months up to now, no YTD total row needed as all rows are ytd)
     buildMonthlyTable(filteredMonthly, isYTD ? null : s.ytdRow);
@@ -813,7 +813,7 @@ function buildDashboard(data, schedData = []) {
 
   document.getElementById('chartMonthlySubtitle').textContent = 'Trainer Days — Monthly | full year';
   buildMonthlyChart(monthlyRows);
-  buildCumulativeChart(cumRows);
+  buildCumulativeChart(cumRows, todayMonth);
   buildMonthlyTable(monthlyRows, ytdRow);
   const fullYearTrainingTotal = monthlyRows.reduce((s, r) => s + r.total, 0);
   buildActivitiesSection(activityCounts, unassignedCounts, fullYearTrainingTotal, 'full');
@@ -822,10 +822,54 @@ function buildDashboard(data, schedData = []) {
   document.querySelectorAll('#monthlyToggle button').forEach((b, i) => b.classList.toggle('active', i === 1));
 
   // ── Cumulative line chart
-  function buildCumulativeChart(rows) {
+  function buildCumulativeChart(rows, todayMonthIdx) {
+    // ── Trendline: avg monthly increment from actual data, projected from last known point
+    const actualPts = rows
+      .map((r, i) => ({ x: i, y: r.total, mIdx: MONTHS.indexOf(r.month) }))
+      .filter(p => p.y > 0 && p.mIdx <= todayMonthIdx);
+    let trendData = rows.map(() => null);
+    if (actualPts.length >= 2) {
+      const lastPt = actualPts[actualPts.length - 1];
+      const avgMonthlyGain = lastPt.y / actualPts.length;
+      // Project forward from the last actual point at the average monthly rate
+      trendData = rows.map((_, i) => {
+        if (i < lastPt.x) return null;
+        return Math.round(lastPt.y + avgMonthlyGain * (i - lastPt.x));
+      });
+    }
+
+    // ── Gap labels plugin: show difference at each actual data point
+    const gapLabelsPlugin = {
+      id: 'gapLabels',
+      afterDatasetsDraw(chart) {
+        const { ctx, scales: { x, y }, data } = chart;
+        const targetDs = data.datasets[0].data;
+        const actualDs = data.datasets[1].data;
+        ctx.save();
+        actualDs.forEach((actual, i) => {
+          if (actual == null || actual === 0) return;
+          const target = targetDs[i];
+          if (target == null) return;
+          const diff = actual - target;
+          if (diff === 0) return;
+          const px = x.getPixelForValue(i);
+          const py = y.getPixelForValue(actual);
+          const label = (diff > 0 ? '+' : '') + diff + 'd';
+          const color = diff >= 0 ? '#3ecf8e' : '#e05c5c';
+          ctx.font = 'bold 20px Segoe UI, sans-serif';
+          ctx.fillStyle = color;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = diff >= 0 ? 'bottom' : 'top';
+          ctx.fillText(label, px, py + (diff >= 0 ? -10 : 10));
+        });
+        ctx.restore();
+      }
+    };
+
     destroyChart('chartCumulative');
     charts['chartCumulative'] = new Chart(document.getElementById('chartCumulative'), {
       type: 'line',
+      plugins: [gapLabelsPlugin],
       data: {
         labels: rows.map(r => r.month),
         datasets: [
@@ -838,6 +882,13 @@ function buildDashboard(data, schedData = []) {
             label: 'Total Team Delivered', data: rows.map(r => r.total),
             borderColor: '#5b8dee', backgroundColor: '#5b8dee22',
             borderWidth: 3, pointRadius: 5, tension: 0.3, fill: true
+          },
+          {
+            label: 'Projected Trend', data: trendData,
+            borderColor: '#7c5cbf', backgroundColor: 'transparent',
+            borderDash: [4, 4], borderWidth: 2, pointRadius: 4,
+            pointBackgroundColor: '#7c5cbf', pointHoverRadius: 6,
+            tension: 0, fill: false
           }
         ]
       },
@@ -845,11 +896,15 @@ function buildDashboard(data, schedData = []) {
         responsive: true,
         plugins: {
           legend: { position: 'top', labels: { font: { size: 26 } } },
-          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y} days` } }
+          tooltip: {
+            mode: 'index', intersect: false,
+            callbacks: { label: ctx => ctx.parsed.y != null ? `${ctx.dataset.label}: ${ctx.parsed.y} days` : null }
+          }
         },
         scales: {
           x: { grid: { color: '#2e3248' }, ticks: { font: { size: 26 } } },
           y: { grid: { color: '#2e3248' }, beginAtZero: true,
+               grace: '10%',
                title: { display: true, text: 'Cumulative Days', font: { size: 26 } },
                ticks: { font: { size: 24 } } }
         }

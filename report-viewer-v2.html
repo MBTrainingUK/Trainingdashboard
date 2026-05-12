@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Training Schedule Viewer</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #252836;
+      --border: #2e3248;
+      --accent: #5b8dee;
+      --accent2: #7c5cbf;
+      --green: #3ecf8e;
+      --orange: #f5a623;
+      --red: #e05c5c;
+      --yellow: #f5c842;
+      --text: #e8eaf6;
+      --muted: #7b82a6;
+      --font: 'Segoe UI', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+
+    /* ── DROP ZONE ── */
+    #dropZone {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; gap: 24px; padding: 40px;
+      background: radial-gradient(ellipse at 50% 0%, #1e2340 0%, var(--bg) 70%);
+    }
+    #dropZone .logo { font-size: 3rem; }
+    #dropZone h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
+    #dropZone p { color: var(--muted); font-size: 1rem; text-align: center; max-width: 480px; }
+    #dropBox {
+      border: 2px dashed var(--border); border-radius: 20px; padding: 60px 80px;
+      text-align: center; cursor: pointer; transition: all .2s;
+      background: var(--surface); display: flex; flex-direction: column; align-items: center; gap: 16px;
+    }
+    #dropBox:hover, #dropBox.over { border-color: var(--accent); background: #1e2540; }
+    #dropBox .icon { font-size: 3rem; }
+    #dropBox span { color: var(--muted); font-size: .95rem; }
+    #dropBox strong { color: var(--accent); }
+    #fileInput { display: none; }
+
+    /* ── APP ── */
+    #app { display: none; flex-direction: column; min-height: 100vh; }
+
+    /* ── HEADER ── */
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 64px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+    .brand h2 { font-size: 1.1rem; font-weight: 600; }
+    .brand small { color: var(--muted); font-size: .8rem; }
+    .reload-btn {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+      border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: .85rem; transition: all .2s;
+    }
+    .reload-btn:hover { color: var(--text); border-color: var(--accent); }
+
+    /* ── TABS ── */
+    .tab-bar {
+      display: flex; gap: 4px; padding: 0 32px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .tab-btn {
+      padding: 14px 20px; cursor: pointer; font-size: .9rem; font-weight: 500;
+      color: var(--muted); border: none; background: none; border-bottom: 2px solid transparent;
+      transition: all .2s; white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; padding: 32px; }
+    .tab-panel.active { display: block; }
+
+    /* ── KPI CARDS ── */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .kpi {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 20px 22px; display: flex; flex-direction: column; gap: 6px;
+    }
+    .kpi .label { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .kpi .value { font-size: 2rem; font-weight: 700; line-height: 1; }
+    .kpi .sub { font-size: .82rem; color: var(--muted); }
+    .kpi.accent { border-color: var(--accent); }
+    .kpi.green { border-color: var(--green); }
+    .kpi.orange { border-color: var(--orange); }
+    .kpi.red { border-color: var(--red); }
+
+    /* ── SECTION ── */
+    .section { margin-bottom: 40px; }
+    .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+    .section-header h3 { font-size: 1.6rem; font-weight: 600; }
+    .section-header .pill {
+      font-size: .72rem; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--muted); border-radius: 20px; padding: 2px 10px;
+    }
+    .section-divider { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    /* ── GRID LAYOUTS ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── CHART CONTAINERS ── */
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      padding: 24px; position: relative;
+    }
+    .chart-card h4 { font-size: .9rem; color: var(--muted); margin-bottom: 16px; font-weight: 500; }
+    .chart-card .chart-wrap { position: relative; }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 1.1rem; }
+    thead { background: var(--surface2); }
+    thead th {
+      padding: 14px 18px; text-align: left; font-weight: 600; color: var(--muted);
+      border-bottom: 1px solid var(--border); white-space: nowrap; font-size: 1rem; text-transform: uppercase; letter-spacing: .3px;
+    }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface2); }
+    tbody td { padding: 14px 18px; white-space: nowrap; font-size: 1.1rem; }
+    td.num { text-align: center; font-variant-numeric: tabular-nums; }
+    td.num.muted { color: var(--muted); }
+    thead th.num { text-align: center; }
+    td.room-name { font-weight: 600; color: var(--text); }
+    td.highlight { color: var(--accent); font-weight: 600; }
+    td.total-row { font-weight: 700; color: var(--text); }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: .75rem; font-weight: 600;
+    }
+    .badge.high { background: rgba(62,207,142,.15); color: var(--green); }
+    .badge.mid { background: rgba(245,166,35,.15); color: var(--orange); }
+    .badge.low { background: rgba(224,92,92,.15); color: var(--red); }
+
+    /* ── PROGRESS BAR ── */
+    .progress-wrap { background: var(--surface2); border-radius: 6px; height: 8px; overflow: hidden; width: 100%; min-width: 80px; }
+    .progress-fill { height: 100%; border-radius: 6px; transition: width .4s; }
+
+    /* ── TOGGLE SWITCH ── */
+    .view-toggle { display: flex; gap: 4px; background: var(--surface2); border-radius: 10px; padding: 4px; }
+    .view-toggle button {
+      border: none; background: none; color: var(--muted); padding: 6px 14px; border-radius: 7px;
+      cursor: pointer; font-size: .82rem; transition: all .2s;
+    }
+    .view-toggle button.active { background: var(--accent); color: #fff; }
+
+    /* ── HEATMAP ── */
+    .heatmap-scroll { overflow: auto; max-height: 640px; border-radius: 14px; border: 1px solid var(--border); }
+    .heatmap-table { border-collapse: collapse; font-size: .78rem; white-space: nowrap; }
+    .heatmap-table th {
+      padding: 7px 6px; text-align: center; font-weight: 600; font-size: .72rem;
+      text-transform: uppercase; letter-spacing: .3px; color: var(--muted);
+      background: #1e2235; border: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 2; overflow: hidden;
+    }
+    .heatmap-table td {
+      padding: 4px 6px; text-align: center; border: 1px solid rgba(0,0,0,0.18);
+      font-variant-numeric: tabular-nums; overflow: hidden;
+    }
+    .heatmap-table .hm-week {
+      background: #1a1d27 !important; color: var(--muted) !important;
+      font-weight: 600; border: 1px solid var(--border) !important;
+      position: sticky; left: 0; z-index: 1;
+    }
+    .heatmap-table thead th:first-child { z-index: 3; }
+    .heatmap-table tbody tr:hover td { filter: brightness(1.12); }
+    .hm-year td { border-top: 2px solid var(--border) !important; }
+
+    /* ── LOADING ── */
+    #loadingOverlay {
+      display: none; position: fixed; inset: 0; background: rgba(15,17,23,.85);
+      align-items: center; justify-content: center; z-index: 999; flex-direction: column; gap: 16px;
+    }
+    .spinner {
+      width: 44px; height: 44px; border: 3px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <span style="color:var(--muted);font-size:.9rem">Reading spreadsheet…</span>
+</div>
+
+<!-- DROP ZONE -->
+<div id="dropZone">
+  <div class="logo">📊</div>
+  <h1>Master Report Viewer</h1>
+  <p>Interactive presentation of your training & room utilisation data</p>
+  <div id="dropBox" onclick="document.getElementById('fileInput').click()">
+    <div class="icon">📁</div>
+    <div><strong>Drop your Excel file here</strong></div>
+    <span>or click to browse &nbsp;·&nbsp; .xlsx files only</span>
+  </div>
+  <input type="file" id="fileInput" accept=".xlsx,.xls" />
+  <p style="font-size:.8rem">Works entirely in your browser — no data is uploaded anywhere</p>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <header>
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h2 id="fileLabel">Master Report</h2>
+        <small id="fileDate"></small>
+      </div>
+    </div>
+    <button class="reload-btn" onclick="resetApp()">↩ Load different file</button>
+  </header>
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">📋 Dashboard</button>
+    <button class="tab-btn" data-tab="rooms" onclick="switchTab('rooms')">🏢 Room Utilisation</button>
+  </div>
+
+  <!-- DASHBOARD TAB -->
+  <div id="tab-dashboard" class="tab-panel active">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <span style="font-size:.85rem;color:var(--muted)">All charts and tables update together</span>
+      <div class="view-toggle" id="monthlyToggle">
+        <button onclick="setMonthlyView('ytd',this)">YTD</button>
+        <button class="active" onclick="setMonthlyView('full',this)">Full Year</button>
+      </div>
+    </div>
+    <div id="dashKpis" class="kpi-grid"></div>
+    <div class="section">
+      <div class="section-header">
+        <h3>Trainer Overview</h3>
+        <span class="pill" id="dashViewPill">Full Year</span>
+      </div>
+      <div id="trainerCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px"></div>
+      <div class="chart-card">
+        <h4 id="chartMonthlySubtitle">Trainer Days — Monthly</h4>
+        <div class="chart-wrap"><canvas id="chartMonthly" height="90"></canvas></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-header"><h3>Cumulative YTD vs Target</h3></div>
+      <div class="chart-card">
+        <h4 id="chartCumulativeSubtitle">Cumulative trainer days vs rolling target</h4>
+        <div class="chart-wrap"><canvas id="chartCumulative" height="90"></canvas></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-header"><h3>Monthly Trainer Summary</h3></div>
+      <div class="table-wrap"><table id="tableMonthly"></table></div>
+    </div>
+    <hr class="section-divider" />
+    <div class="section">
+      <div class="section-header"><h3>Other Activities</h3><span class="pill" id="activitiesPill">Full Year</span></div>
+      <div class="chart-card" style="max-width:900px">
+        <h4 id="chartActivitiesSubtitle">Non-training activity breakdown — % of all available days</h4>
+        <div class="chart-wrap"><canvas id="chartActivities" height="340"></canvas></div>
+      </div>
+      <div style="margin-top:24px" class="table-wrap"><table id="tableActivities"></table></div>
+    </div>
+  </div>
+
+  <!-- ROOMS TAB -->
+  <div id="tab-rooms" class="tab-panel">
+    <div id="roomKpis" class="kpi-grid"></div>
+    <div class="section">
+      <div class="section-header">
+        <h3>Weekly Room Booking Heatmap</h3>
+        <span class="pill">52 weeks</span>
+      </div>
+      <div class="heatmap-scroll" id="weeklyHeatmap">
+        <p style="color:var(--muted);padding:20px">Loading…</p>
+      </div>
+    </div>
+    <hr class="section-divider" />
+    <div class="section">
+      <div class="section-header" style="justify-content:space-between">
+        <h3>Room Utilisation</h3>
+        <div class="view-toggle" id="roomPeriodToggle">
+          <button class="active" onclick="setRoomView('ytd',this)">Jan – End of Month</button>
+          <button onclick="setRoomView('full',this)">Full Year</button>
+        </div>
+      </div>
+      <div class="chart-card" style="margin-bottom:24px">
+        <h4 id="roomYTDSubtitle">Booked vs available days</h4>
+        <div class="chart-wrap"><canvas id="chartRoomYTD" height="100"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h4 id="roomMonthlySubtitle">Monthly utilisation % by room</h4>
+        <div class="chart-wrap"><canvas id="chartRoomMonthly" height="90"></canvas></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-header"><h3>Room Detail Table (YTD)</h3></div>
+      <div class="table-wrap"><table id="tableRooms"></table></div>
+    </div>
+    <div class="section">
+      <div class="section-header"><h3>Monthly Booking Detail</h3></div>
+      <div class="table-wrap"><table id="tableRoomMonthly"></table></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const PALETTE = ['#5b8dee','#7c5cbf','#3ecf8e','#f5a623','#e05c5c','#f5c842','#5bc8f5','#b96ef5','#f5865b'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const ROOM_ORDER = ['TW1+Studio','TW2','TW3','TW10','TW11','TR1'];
+const TARGET_PCT = 0.66;
+const TRAINER_MONTHLY_TARGET = 12.5;
+
+// ─── CHART.JS DEFAULTS ───────────────────────────────────────────────────────
+Chart.defaults.color = '#7b82a6';
+Chart.defaults.borderColor = '#2e3248';
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const charts = {};
+const state = {};   // holds monthly/room data for toggle rebuilds
+
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+// ─── TAB SWITCHING ───────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ─── RESET ───────────────────────────────────────────────────────────────────
+function resetApp() {
+  Object.values(charts).forEach(c => c.destroy());
+  for (const k in charts) delete charts[k];
+  for (const k in state) delete state[k];
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('dropZone').style.display = 'flex';
+  document.getElementById('fileInput').value = '';
+}
+
+// ─── DRAG & DROP ─────────────────────────────────────────────────────────────
+const dropBox = document.getElementById('dropBox');
+const fileInput = document.getElementById('fileInput');
+
+dropBox.addEventListener('dragover', e => { e.preventDefault(); dropBox.classList.add('over'); });
+dropBox.addEventListener('dragleave', () => dropBox.classList.remove('over'));
+dropBox.addEventListener('drop', e => {
+  e.preventDefault(); dropBox.classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) processFile(e.target.files[0]); });
+
+// ─── FILE PROCESSING ─────────────────────────────────────────────────────────
+function processFile(file) {
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const dashSheet = wb.Sheets['Dashboard (2026)'];
+      const roomSheet = wb.Sheets['Room Utilisation (2026)'];
+      const roomsRawSheet = wb.Sheets['Rooms (2026)'];
+      const courseSheet  = wb.Sheets['Course Analysis (2026)'];
+      const schedSheet   = wb.Sheets['Schedule 2026'];
+      if (!dashSheet || !roomSheet) {
+        alert('Could not find "Dashboard (2026)" or "Room Utilisation (2026)" sheets. Please check you are loading the correct TechnicalTrainingSchedule file.');
+        document.getElementById('loadingOverlay').style.display = 'none';
+        return;
+      }
+      const sheetToGrid = s => XLSX.utils.sheet_to_json(s, { header: 1, defval: '' });
+      const dashData      = sheetToGrid(dashSheet);
+      const roomData      = sheetToGrid(roomSheet);
+      const roomsRawData  = roomsRawSheet ? sheetToGrid(roomsRawSheet) : [];
+      const courseData    = courseSheet  ? sheetToGrid(courseSheet)  : [];
+      const schedData     = schedSheet   ? sheetToGrid(schedSheet)   : [];
+
+      document.getElementById('fileLabel').textContent = file.name.replace(/\.xlsx?$/,'');
+      document.getElementById('fileDate').textContent  = 'Loaded ' + new Date().toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'});
+
+      buildDashboard(dashData, schedData);
+      buildRooms(roomData, roomsRawData);
+
+      document.getElementById('loadingOverlay').style.display = 'none';
+      document.getElementById('dropZone').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      document.getElementById('app').style.flexDirection = 'column';
+    } catch (err) {
+      alert('Error reading file: ' + err.message);
+      document.getElementById('loadingOverlay').style.display = 'none';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+const cleanName = s => String(s || '').replace(/\n/g, ' ').trim();
+const utilisation = (booked, unalloc) => (booked + unalloc) > 0 ? booked / (booked + unalloc) : 0;
+
+// Shared colour-threshold logic (progress bar fills, cell colours, etc.)
+function utilColor(pct) {
+  return pct >= 0.7 ? 'var(--green)' : pct >= 0.4 ? 'var(--orange)' : 'var(--red)';
+}
+
+function pctBadge(v) {
+  const p = num(v) * 100;
+  const cls = p >= 70 ? 'high' : p >= 40 ? 'mid' : 'low';
+  return `<span class="badge ${cls}">${p.toFixed(1)}%</span>`;
+}
+function progressBar(v, color = 'var(--accent)') {
+  const w = Math.min(100, num(v) * 100).toFixed(1);
+  return `<div class="progress-wrap"><div class="progress-fill" style="width:${w}%;background:${color}"></div></div>`;
+}
+
+// Find first row containing keyword
+function findRow(data, keyword, startFrom = 0) {
+  for (let i = startFrom; i < data.length; i++) {
+    if (data[i].some(c => String(c || '').includes(keyword))) return i;
+  }
+  return -1;
+}
+
+// Factory: dotted yellow reference line at a computed y-value.
+// `targetFn(chart)` returns the y-value to draw at (or null to skip).
+function makeTargetLine(id, targetFn, opts = {}) {
+  const { label = '66% target', dash = [10, 6], lineWidth = 3, font = 'bold 22px Segoe UI, sans-serif' } = opts;
+  return {
+    id,
+    afterDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!scales.y) return;
+      const val = targetFn(chart);
+      if (val == null) return;
+      const y = scales.y.getPixelForValue(val);
+      ctx.save();
+      ctx.strokeStyle = '#f5c842';
+      ctx.lineWidth = lineWidth;
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, y);
+      ctx.lineTo(chartArea.right, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#f5c842';
+      ctx.font = font;
+      ctx.textAlign = 'left';
+      ctx.fillText(label, chartArea.right + 8, y + 8);
+      ctx.restore();
+    }
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DASHBOARD
+// ─────────────────────────────────────────────────────────────────────────────
+function buildDashboard(data, schedData = []) {
+  // ── Parse Schedule 2026 for per-trainer unique courses, activity counts & unassigned days
+  // The schedule has first-name columns: Gary, Robin, Victor, Pete, Andy, Jon, Tayler
+  // Each cell = course code (e.g. T2906F-UK.PC) or a named activity or empty
+  // SKIP: Weekend and Bank Holiday are not working days and don't count as activities
+  const SCHED_SKIP = new Set(['Weekend', 'Bank Holiday']);
+
+  const courseStats    = {}; // firstName → { unique, days, courseMap }
+  const unassignedCounts    = {}; // firstName → empty cell count (full year)
+  const unassignedCountsYTD = {}; // firstName → empty cell count (YTD)
+  const activityCounts    = {}; // activityName → { firstName → count } (full year)
+  const activityCountsYTD = {}; // activityName → { firstName → count } (YTD)
+  if (schedData.length > 1) {
+    const schedHeader = schedData[0];
+    const TRAINER_FIRST_NAMES = ['Gary','Robin','Victor','Pete','Andy','Jon','Tayler'];
+    const schedTrainerCols = [];
+    schedHeader.forEach((h, i) => {
+      if (TRAINER_FIRST_NAMES.includes(String(h || '').trim()))
+        schedTrainerCols.push({ name: String(h).trim(), col: i });
+    });
+    schedTrainerCols.forEach(({ name }) => {
+      courseStats[name] = { unique: 0, days: 0, courseMap: {} };
+      unassignedCounts[name] = 0;
+      unassignedCountsYTD[name] = 0;
+    });
+    // todayMonth is 0-indexed (JS), schedule col 1 = month number 1-12
+    const _now = new Date();
+    const _ytdMaxMonth = _now.getMonth() + 1; // e.g. May = 5
+    for (let r = 6; r < schedData.length; r++) {
+      const row = schedData[r];
+      const hasDate = row[0] !== null && row[0] !== '' && !isNaN(Number(row[0]));
+      if (!hasDate) continue;
+      const monthNum = Number(row[1] || 0);
+      const isYTDRow = monthNum >= 1 && monthNum <= _ytdMaxMonth;
+      schedTrainerCols.forEach(({ name, col }) => {
+        const val = String(row[col] || '').trim();
+        if (!val) {
+          unassignedCounts[name]++;
+          if (isYTDRow) unassignedCountsYTD[name]++;
+          return;
+        }
+        if (SCHED_SKIP.has(val)) return;
+        const isCourse = /^[A-Z]\d/.test(val) || val.startsWith('Comp') || val.startsWith('Open') || val.startsWith('Tak');
+        if (isCourse) {
+          courseStats[name].courseMap[val] = (courseStats[name].courseMap[val] || 0) + 1;
+        } else {
+          if (!activityCounts[val]) activityCounts[val] = {};
+          activityCounts[val][name] = (activityCounts[val][name] || 0) + 1;
+          if (isYTDRow) {
+            if (!activityCountsYTD[val]) activityCountsYTD[val] = {};
+            activityCountsYTD[val][name] = (activityCountsYTD[val][name] || 0) + 1;
+          }
+        }
+      });
+    }
+    schedTrainerCols.forEach(({ name }) => {
+      const cm = courseStats[name].courseMap;
+      courseStats[name].unique = Object.keys(cm).length;
+      courseStats[name].days   = Object.values(cm).reduce((s, v) => s + v, 0);
+    });
+  }
+
+  // Map full trainer name → first name for schedule lookup
+  function firstNameOf(fullName) {
+    const n = cleanName(fullName).split(/\s+/)[0];
+    // Handle shortened names in schedule
+    if (n === 'Peter') return 'Pete';
+    return n;
+  }
+  // ── Monthly section
+  const monthlyHeaderRow = findRow(data, 'Trainer Days (Month)');
+  const trainerRow = monthlyHeaderRow + 1;
+  const trainers = data[trainerRow].slice(2, -1).map(cleanName).filter(t => t && t !== 'Target' && !t.includes('Total'));
+  const trainerCols = data[trainerRow]
+    .map((v, i) => ({ v: cleanName(v), i }))
+    .filter(x => x.v && x.v !== 'Target' && !x.v.includes('Total'))
+    .map(x => x.i);
+  const totalCol  = data[trainerRow].findIndex(v => String(v).includes('Total'));
+  let targetCol = data[trainerRow].findIndex(v => String(v).includes('Target'));
+  if (targetCol < 0) targetCol = 1; // Schedule file: target values are in col 1 of each data row
+
+  const monthlyRows = [];   // only true month rows
+  let ytdRow = null;        // YTD Total row kept separately
+  for (let r = trainerRow + 1; r < data.length; r++) {
+    const month = String(data[r][0] || '').trim();
+    if (MONTHS.includes(month)) {
+      const row = { month, target: num(data[r][targetCol]) };
+      trainerCols.forEach((c, i) => row[trainers[i]] = num(data[r][c]));
+      row.total = num(data[r][totalCol]);
+      monthlyRows.push(row);
+    } else if (month.includes('Total Individual')) {
+      ytdRow = { month: 'YTD Total', target: null };
+      trainerCols.forEach((c, i) => ytdRow[trainers[i]] = num(data[r][c]));
+      ytdRow.total = num(data[r][totalCol]);
+      break;
+    }
+  }
+
+  // ── Cumulative section — built from monthly data (schedule file cumulative
+  // section is null for future months as formulae haven't calculated yet)
+  const cumRows = [];
+  let runningTotal = 0;
+  const runningByTrainer = {};
+  trainers.forEach(t => runningByTrainer[t] = 0);
+  monthlyRows.forEach((r, idx) => {
+    runningTotal += r.total;
+    const row = { month: r.month, target: TRAINER_MONTHLY_TARGET * (idx + 1) };
+    trainers.forEach(t => {
+      runningByTrainer[t] += (r[t] || 0);
+      row[t] = runningByTrainer[t];
+    });
+    row.total = runningTotal;
+    cumRows.push(row);
+  });
+
+  // ── Activities section — all derived from Schedule 2026 cell counts
+  // actTrainers full names still read from Dashboard header for ordering
+  const actHeaderRow = findRow(data, 'Other Activities');
+  const actTrainerRow = actHeaderRow + 1;
+  const actTrainers = data[actTrainerRow].slice(2, -1).map(cleanName).filter(t => t && t !== 'Total Team');
+
+  // ── KPIs (Jan → current month only)
+  const now = new Date();
+  const todayMonth = now.getMonth();
+  const ytdMonthRows = monthlyRows.filter(r => MONTHS.indexOf(r.month) <= todayMonth);
+  const activeMonths = ytdMonthRows.length;
+
+  const ytdDelivered = {};
+  trainers.forEach(t => { ytdDelivered[t] = ytdMonthRows.reduce((s, r) => s + (r[t] || 0), 0); });
+  const ytdTotal = ytdMonthRows.reduce((s, r) => s + r.total, 0);
+
+  const perTrainerTarget = activeMonths * TRAINER_MONTHLY_TARGET;
+  const teamTarget = perTrainerTarget * trainers.length;
+  const pctVsTarget = teamTarget > 0 ? (ytdTotal / teamTarget * 100).toFixed(0) : 0;
+  const avgPerTrainer = trainers.length > 0 ? (ytdTotal / trainers.length).toFixed(0) : 0;
+  const endOfMonth = new Date(now.getFullYear(), todayMonth + 1, 0);
+  const periodLabel = endOfMonth.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+
+  document.getElementById('dashKpis').innerHTML = `
+    <div class="kpi accent"><div class="label">Team Days YTD</div><div class="value" style="color:var(--accent)">${ytdTotal}</div><div class="sub">Jan – ${periodLabel}</div></div>
+    <div class="kpi green"><div class="label">vs Target</div><div class="value" style="color:var(--green)">${pctVsTarget}%</div><div class="sub">YTD team target: ${teamTarget} days (${trainers.length} trainers × ${activeMonths} months)</div></div>
+    <div class="kpi orange"><div class="label">Avg per Trainer</div><div class="value" style="color:var(--orange)">${avgPerTrainer}</div><div class="sub">YTD days / ${trainers.length} trainers</div></div>
+    <div class="kpi"><div class="label">Individual Target YTD</div><div class="value">${perTrainerTarget}</div><div class="sub">${TRAINER_MONTHLY_TARGET} days × ${activeMonths} months (Jan – ${MONTHS[todayMonth]})</div></div>
+  `;
+
+  // ── Trainer cards
+  const fullYearByTrainer = {};
+  trainers.forEach(t => { fullYearByTrainer[t] = monthlyRows.reduce((s, r) => s + (r[t] || 0), 0); });
+
+  document.getElementById('trainerCards').innerHTML = trainers.map(t => {
+    const delivered = ytdDelivered[t] || 0;
+    const fullYear  = fullYearByTrainer[t] || 0;
+    const pct = perTrainerTarget > 0 ? Math.min(100, (delivered / perTrainerTarget) * 100) : 0;
+    const color = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
+    const diff = delivered - perTrainerTarget;
+    const diffStr = diff >= 0 ? `+${diff.toFixed(1)} ahead` : `${diff.toFixed(1)} behind`;
+    const diffColor = diff >= 0 ? 'var(--green)' : 'var(--red)';
+    // Match trainer to course analysis initials
+    const firstName = firstNameOf(t);
+    const cs = courseStats[firstName] || { unique: 0, days: 0 };
+    const courseSection = cs.unique > 0 ? `
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:4px;text-align:center">
+        <div>
+          <div style="font-size:1.3rem;font-weight:700;color:var(--accent)">${cs.unique}</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-top:1px">Unique<br>Courses</div>
+        </div>
+        <div>
+          <div style="font-size:1.3rem;font-weight:700;color:var(--text)">${fullYear}</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-top:1px">Days<br>Full Year</div>
+        </div>
+      </div>` : `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:.72rem;color:var(--muted);font-style:italic">Course breakdown not yet in schedule</div>`;
+    return `<div class="kpi" style="border-color:${color}22">
+      <div class="label" style="color:var(--muted)">${t}</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin:6px 0 2px">
+        <span style="font-size:1.7rem;font-weight:700;color:${color}">${delivered}</span>
+        <span style="font-size:.82rem;color:var(--muted)">YTD &nbsp;/&nbsp; ${fullYear} full yr</span>
+      </div>
+      <div class="progress-wrap" style="margin:6px 0 6px"><div class="progress-fill" style="width:${pct.toFixed(1)}%;background:${color}"></div></div>
+      <div style="font-size:.78rem;color:${diffColor};font-weight:600">${diffStr}</div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:2px">${pct.toFixed(0)}% of YTD target</div>
+      ${courseSection}
+    </div>`;
+  }).join('');
+
+  // ── Monthly bar chart (with toggle)
+  state.monthly = {
+    rows: monthlyRows, trainers, todayMonth, cumRows,
+    ytdRow, actTrainers,
+    activityCounts, activityCountsYTD,
+    unassignedCounts, unassignedCountsYTD
+  };
+
+  const trainerTargetLine = makeTargetLine(
+    'trainerTargetLine',
+    () => TRAINER_MONTHLY_TARGET,
+    { label: `Target ${TRAINER_MONTHLY_TARGET}`, dash: [6, 4], lineWidth: 2, font: '26px Segoe UI, sans-serif' }
+  );
+
+  function buildMonthlyChart(rows) {
+    destroyChart('chartMonthly');
+    charts['chartMonthly'] = new Chart(document.getElementById('chartMonthly'), {
+      type: 'bar',
+      plugins: [ChartDataLabels, trainerTargetLine],
+      data: {
+        labels: rows.map(r => r.month),
+        datasets: trainers.map((t, i) => ({
+          label: t,
+          data: rows.map(r => r[t] || 0),
+          backgroundColor: PALETTE[i % PALETTE.length] + 'bb',
+          borderColor: PALETTE[i % PALETTE.length],
+          borderWidth: 1,
+          borderRadius: 3
+        }))
+      },
+      options: {
+        responsive: true,
+        layout: { padding: { right: 160 } },
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 26 } } },
+          datalabels: {
+            anchor: 'end', align: 'end',
+            color: '#e8eaf6', font: { size: 22, weight: '600' },
+            formatter: v => v > 0 ? v : '',
+            offset: -2
+          }
+        },
+        scales: {
+          x: { grid: { color: '#2e3248' }, ticks: { font: { size: 26 } } },
+          y: { grid: { color: '#2e3248' }, beginAtZero: true,
+               title: { display: true, text: 'Days', font: { size: 26 } },
+               ticks: { font: { size: 24 } } }
+        }
+      }
+    });
+  }
+
+  window.setMonthlyView = function(mode, btn) {
+    document.querySelectorAll('#monthlyToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const s = state.monthly;
+    const isYTD = mode === 'ytd';
+    const monthLabel = 'end of ' + MONTHS[s.todayMonth];
+    const filteredMonthly = isYTD
+      ? s.rows.filter(r => MONTHS.indexOf(r.month) <= s.todayMonth)
+      : s.rows;
+    const filteredCum = isYTD
+      ? s.cumRows.filter(r => MONTHS.indexOf(r.month) <= s.todayMonth)
+      : s.cumRows;
+
+    // Pill
+    document.getElementById('dashViewPill').textContent = isYTD ? `YTD (Jan – ${monthLabel})` : 'Full Year';
+    document.getElementById('chartCumulativeSubtitle').textContent = isYTD
+      ? `Cumulative trainer days vs rolling target — Jan to ${monthLabel}`
+      : 'Cumulative trainer days vs rolling target — full year';
+
+    // Monthly bar chart
+    document.getElementById('chartMonthlySubtitle').textContent = isYTD
+      ? `Trainer Days — Monthly | Jan to ${monthLabel}`
+      : 'Trainer Days — Monthly | full year';
+    buildMonthlyChart(filteredMonthly);
+
+    // Cumulative chart
+    buildCumulativeChart(filteredCum);
+
+    // Monthly table (YTD: only show months up to now, no YTD total row needed as all rows are ytd)
+    buildMonthlyTable(filteredMonthly, isYTD ? null : s.ytdRow);
+
+    // Activities
+    const trainingTotal = filteredMonthly.reduce((sum, r) => sum + r.total, 0);
+    buildActivitiesSection(
+      isYTD ? s.activityCountsYTD : s.activityCounts,
+      isYTD ? s.unassignedCountsYTD : s.unassignedCounts,
+      trainingTotal,
+      mode
+    );
+  };
+
+  document.getElementById('chartMonthlySubtitle').textContent = 'Trainer Days — Monthly | full year';
+  buildMonthlyChart(monthlyRows);
+  buildCumulativeChart(cumRows);
+  buildMonthlyTable(monthlyRows, ytdRow);
+  const fullYearTrainingTotal = monthlyRows.reduce((s, r) => s + r.total, 0);
+  buildActivitiesSection(activityCounts, unassignedCounts, fullYearTrainingTotal, 'full');
+  // Default to Full Year
+  document.querySelectorAll('#monthlyToggle button').forEach((b, i) => b.classList.toggle('active', i === 1));
+
+  // ── Cumulative line chart
+  function buildCumulativeChart(rows) {
+    destroyChart('chartCumulative');
+    charts['chartCumulative'] = new Chart(document.getElementById('chartCumulative'), {
+      type: 'line',
+      data: {
+        labels: rows.map(r => r.month),
+        datasets: [
+          {
+            label: 'Team Target', data: rows.map(r => r.target * trainers.length),
+            borderColor: '#f5c842', backgroundColor: '#f5c84211',
+            borderDash: [6, 3], borderWidth: 2.5, pointRadius: 4, tension: 0.1, fill: true
+          },
+          {
+            label: 'Total Team Delivered', data: rows.map(r => r.total),
+            borderColor: '#5b8dee', backgroundColor: '#5b8dee22',
+            borderWidth: 3, pointRadius: 5, tension: 0.3, fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 26 } } },
+          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y} days` } }
+        },
+        scales: {
+          x: { grid: { color: '#2e3248' }, ticks: { font: { size: 26 } } },
+          y: { grid: { color: '#2e3248' }, beginAtZero: true,
+               title: { display: true, text: 'Cumulative Days', font: { size: 26 } },
+               ticks: { font: { size: 24 } } }
+        }
+      }
+    });
+  }
+
+  // ── Monthly Summary table
+  function trainingCell(val, target) {
+    const v = num(val);
+    const pct = target > 0 ? v / target : 0;
+    const color = pct >= 1 ? '#3ecf8e' : pct >= 0.7 ? '#f5c842' : pct >= 0.5 ? '#f5a623' : pct > 0 ? '#e05c5c' : '#e05c5c';
+    const dot = v === 0
+      ? `<span style="color:#3a3f58;font-size:.85rem">—</span>`
+      : `<span style="display:inline-flex;align-items:center;gap:5px">
+           <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;display:inline-block"></span>
+           <span>${v}</span>
+         </span>`;
+    return `<td style="text-align:center">${dot}</td>`;
+  }
+  function buildMonthlyTable(rows, ytdRowData) {
+    const tbl = document.getElementById('tableMonthly');
+    tbl.innerHTML = `<thead><tr>
+    <th style="text-align:left">Month</th>
+    <th style="text-align:center">Target</th>
+    ${trainers.map(t => `<th style="text-align:center">${t}</th>`).join('')}
+    <th style="text-align:center">Total Team</th>
+  </tr></thead><tbody>
+  ${rows.map(r => `<tr>
+    <td>${r.month}</td>
+    <td style="text-align:center;color:var(--muted)">${r.target}</td>
+    ${trainers.map(t => trainingCell(r[t], TRAINER_MONTHLY_TARGET)).join('')}
+    <td style="text-align:center;color:var(--accent);font-weight:600">${r.total}</td>
+  </tr>`).join('')}
+  ${ytdRowData ? `<tr style="background:var(--surface2)">
+    <td class="total-row">YTD TOTAL</td>
+    <td style="text-align:center">—</td>
+    ${trainers.map(t => `<td style="text-align:center;font-weight:700">${ytdRowData[t] || 0}</td>`).join('')}
+    <td style="text-align:center;color:var(--accent);font-weight:700">${ytdRowData.total}</td>
+  </tr>` : ''}
+  </tbody>`;
+  }
+
+  // ── Activities horizontal bar + table
+  function buildActivitiesSection(actCountsSrc, unassignedSrc, trainingTotal, mode) {
+    const periodLabel = mode === 'ytd'
+      ? `Jan – end of ${MONTHS[state.monthly.todayMonth]}`
+      : 'full year';
+    document.getElementById('activitiesPill').textContent = mode === 'ytd'
+      ? `YTD (${periodLabel})` : 'Full Year';
+    document.getElementById('chartActivitiesSubtitle').textContent =
+      `Non-training activity breakdown — ${periodLabel} (% of all available days)`;
+
+    const ACT_ORDER = [
+      'Development','Set-Up','Administration','Set-Down','CPD',
+      'Second Trainer','Trainer Duties','Course Prep','TTT','Event',
+      'Sick','Holiday','Leave - Other'
+    ];
+    const allActNames = Object.keys(actCountsSrc);
+    const ordered = [
+      ...ACT_ORDER.filter(a => allActNames.includes(a)),
+      ...allActNames.filter(a => !ACT_ORDER.includes(a)).sort()
+    ];
+    const rows = [];
+    ordered.forEach(act => {
+      const counts = actCountsSrc[act] || {};
+      const row = { activity: act };
+      let total = 0;
+      actTrainers.forEach(t => {
+        const count = counts[firstNameOf(t)] || 0;
+        row[t] = count;
+        total += count;
+      });
+      row.total = total;
+      rows.push(row);
+    });
+    // Unassigned last
+    if (Object.keys(unassignedSrc).length > 0) {
+      const uRow = { activity: 'Unassigned' };
+      let uTotal = 0;
+      actTrainers.forEach(t => {
+        const count = unassignedSrc[firstNameOf(t)] || 0;
+        uRow[t] = count;
+        uTotal += count;
+      });
+      uRow.total = uTotal;
+      rows.push(uRow);
+    }
+
+    const activityBars = rows.filter(r => r.activity !== 'Total Individual').sort((a, b) => b.total - a.total);
+    const actGrandTotal = trainingTotal + activityBars.reduce((s, r) => s + r.total, 0);
+    destroyChart('chartActivities');
+    charts['chartActivities'] = new Chart(document.getElementById('chartActivities'), {
+      type: 'bar',
+      plugins: [ChartDataLabels],
+      data: {
+        labels: activityBars.map(r => r.activity),
+        datasets: [{
+          data: activityBars.map(r => r.total),
+          backgroundColor: PALETTE.slice(0, activityBars.length),
+          borderWidth: 0,
+          borderRadius: 5
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        layout: { padding: { right: 200 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.parsed.x} days (${((ctx.parsed.x / actGrandTotal) * 100).toFixed(1)}% of all days)`
+            }
+          },
+          datalabels: {
+            anchor: 'end', align: 'end',
+            color: '#e8eaf6', font: { size: 26, weight: '600' },
+            formatter: v => `${v}  (${((v / actGrandTotal) * 100).toFixed(0)}%)`
+          }
+        },
+        scales: {
+          x: { grid: { color: '#2e3248' }, beginAtZero: true,
+               title: { display: true, text: 'Days', font: { size: 26 } },
+               ticks: { font: { size: 24 } } },
+          y: { grid: { display: false }, ticks: { color: '#e8eaf6', font: { size: 26 } } }
+        }
+      }
+    });
+
+    // Table
+    document.getElementById('tableActivities').innerHTML = `<thead><tr>
+      <th style="text-align:left">Activity</th>
+      ${actTrainers.map(t => `<th style="text-align:center">${t}</th>`).join('')}
+      <th style="text-align:center">Total Team</th>
+    </tr></thead><tbody>
+    ${rows.map(r => {
+      const isUnassigned = r.activity === 'Unassigned';
+      const rowStyle = isUnassigned ? ' style="background:rgba(94,108,180,0.12);border-top:1px solid var(--border)"' : '';
+      return `<tr${rowStyle}>
+      <td>${r.activity}${isUnassigned ? ' <span style="font-size:.7rem;color:var(--muted);font-style:italic">(from schedule)</span>' : ''}</td>
+      ${actTrainers.map(t => `<td style="text-align:center">${r[t] || 0}</td>`).join('')}
+      <td style="text-align:center;color:var(--accent);font-weight:600">${r.total}</td>
+    </tr>`;
+    }).join('')}
+    </tbody>`;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WEEKLY HEATMAP — reads from left section of Rooms sheet (cols 0–9)
+// Rooms: Col 0=Week#, Col 1=Date, Col 4=TW1+Studio, Col 5=TW2, Col 6=TW3,
+//        Col 7=TW10, Col 8=TW11, Col 9=TR1
+// ─────────────────────────────────────────────────────────────────────────────
+function buildWeeklyHeatmap(data) {
+  const container = document.getElementById('weeklyHeatmap');
+  if (!container) return;
+  if (!data || data.length < 3) {
+    container.innerHTML = '<p style="color:var(--muted);padding:20px">No Rooms sheet found.</p>';
+    return;
+  }
+
+  // 0=green (fully booked) → 5=red (fully empty)
+  function heatColor(val) {
+    const v = Math.max(0, Math.min(5, parseFloat(val) || 0));
+    const ratio = v / 5; // 0 = booked = green, 1 = empty = red
+    let r, g, b;
+    if (ratio <= 0.5) {
+      const t = ratio * 2;
+      r = Math.round(99  + (255 - 99)  * t);
+      g = Math.round(190 + (235 - 190) * t);
+      b = Math.round(123 + (132 - 123) * t);
+    } else {
+      const t = (ratio - 0.5) * 2;
+      r = Math.round(255 + (248 - 255) * t);
+      g = Math.round(235 + (105 - 235) * t);
+      b = Math.round(132 + (107 - 132) * t);
+    }
+    return `rgb(${r},${g},${b})`;
+  }
+  function totalColor(val) {
+    const ratio = Math.min(1, (parseFloat(val) || 0) / 35);
+    const r = Math.round(198 - ratio * 167);
+    const g = Math.round(217 - ratio * 139);
+    const b = Math.round(240 - ratio * 46);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  // Left section column indices → room labels (skipping TW1 Only & Studio Only)
+  const ROOM_COLS   = [4, 5, 6, 7, 8, 9];
+  const ROOM_LABELS = ['TW1+Studio', 'TW2', 'TW3', 'TW10', 'TW11', 'TR1'];
+  const ALL_HEADERS = ['Wk', ...ROOM_LABELS, 'Total', 'Cumulative'];
+
+  // Year training totals from row 1 ('Training:' summary row)
+  const yearTotals = ROOM_COLS.map(c => num(data[1] ? data[1][c] : 0));
+  const yearTotal  = yearTotals.reduce((s, v) => s + v, 0);
+
+  // Aggregate daily rows into weekly sums.
+  // Week # appears in col 0 on the first day of that week (and on a null-date
+  // marker row for week 1). All subsequent rows until the next week # belong
+  // to that week.
+  const weekRows = [];
+  let currentWeek = null;
+  let currentSums = null;
+
+  for (let r = 3; r < data.length; r++) {
+    const row = data[r];
+    const c0 = row[0];
+    const c1 = row[1];
+    const isWeekMarker = typeof c0 === 'number' && Number.isInteger(c0) && c0 >= 1 && c0 <= 52;
+    const hasDate = c1 instanceof Date;
+
+    if (isWeekMarker) {
+      if (currentWeek !== null) weekRows.push([currentWeek, ...currentSums]);
+      currentWeek = c0;
+      currentSums = ROOM_COLS.map(() => 0);
+      // The marker row itself often IS the Monday date row — add its values
+      if (hasDate) ROOM_COLS.forEach((c, i) => { currentSums[i] += num(row[c]); });
+    } else if (currentSums && hasDate) {
+      // Regular weekday or Saturday/Sunday row
+      ROOM_COLS.forEach((c, i) => { currentSums[i] += num(row[c]); });
+    }
+  }
+  if (currentWeek !== null) weekRows.push([currentWeek, ...currentSums]);
+
+  if (!weekRows.length) {
+    container.innerHTML = '<p style="color:var(--muted);padding:20px">Heatmap data not found.</p>';
+    return;
+  }
+
+  // Append weekly total (unused days) + running cumulative of unused
+  const MAX_DAYS = 5; // working days per week per room
+  let cumulative = 0;
+  const finalRows = weekRows.map(row => {
+    const roomVals = row.slice(1).map(v => Math.max(0, MAX_DAYS - v)); // invert: show unused days
+    const total = roomVals.reduce((s, v) => s + v, 0);
+    cumulative += total;
+    return [row[0], ...roomVals, total, cumulative];
+  });
+
+  // Year totals row — also invert (max possible = 52 weeks × 5 days per room)
+  const MAX_YEAR = 52 * MAX_DAYS;
+  const yearUnused = yearTotals.map(v => Math.max(0, MAX_YEAR - v));
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  function renderCell(val, colIdx) {
+    const v = val != null && val !== '' ? val : 0;
+    const s = String(v);
+    if (colIdx === 0) return `<td class="hm-week">${s}</td>`;
+    if (colIdx <= 6)  return `<td style="background:${heatColor(v)};color:#111">${s}</td>`;
+    if (colIdx === 7) return `<td style="background:${heatColor(v / ROOM_COLS.length)};color:#111;font-weight:600">${s}</td>`;
+    return `<td style="background:#12274e;color:#8aacf5">${s}</td>`;
+  }
+
+  let html = `<table class="heatmap-table">
+    <colgroup>${ALL_HEADERS.map(() => `<col style="width:70px">`).join('')}</colgroup>
+    <thead><tr>
+      ${ALL_HEADERS.map((h, i) => `<th${i === 0 ? ' style="position:sticky;left:0;z-index:3"' : ''}>${h}</th>`).join('')}
+    </tr></thead>
+    <tbody>`;
+
+  // Year totals row — scale unused back to 0-5 per week for colour (÷52 weeks)
+  const CUM_BG   = '#12274e';
+  const CUM_TEXT = '#8aacf5';
+  const yearUnusedTotal = yearUnused.reduce((s, v) => s + v, 0);
+  html += `<tr class="hm-year">
+    <td class="hm-week" style="background:${CUM_BG};color:${CUM_TEXT};font-weight:700;font-size:.7rem">TOTAL</td>
+    ${yearUnused.map(v => `<td style="background:${CUM_BG};color:${CUM_TEXT};font-weight:700">${v}</td>`).join('')}
+    <td style="background:${CUM_BG};color:${CUM_TEXT};font-weight:700">${yearUnusedTotal}</td>
+    <td style="background:${CUM_BG};color:${CUM_TEXT};font-weight:700">—</td>
+  </tr>`;
+
+  finalRows.forEach(row => {
+    html += '<tr>' + row.map((v, i) => renderCell(v, i)).join('') + '</tr>';
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ROOM UTILISATION
+// ─────────────────────────────────────────────────────────────────────────────
+function buildRooms(data, roomsRawData) {
+  buildWeeklyHeatmap(roomsRawData);
+
+  const ytdViewRow = findRow(data, 'YEAR VIEW');
+  const subRow = ytdViewRow + 3;
+
+  // Month columns: Jan starts at col 5, every 2 cols
+  const months = [];
+  for (let c = 5; c < data[ytdViewRow].length; c += 2) {
+    const m = String(data[ytdViewRow][c] || '').trim();
+    const shortM = MONTHS.includes(m) ? m : MONTHS[MONTHS_FULL.indexOf(m)];
+    if (shortM) months.push({ month: shortM, col: c });
+    else if (months.length > 0) break;
+  }
+
+  // Read rooms: YTD totals (cols 1–3) + per-month booked/available
+  const rooms = [];
+  for (let r = subRow + 1; r < data.length; r++) {
+    const name = String(data[r][0] || '').trim();
+    if (!name || name.match(/^\d+$/) || name.includes('>>')) break;
+    if (name === 'PLEASE DO NOT EDIT') continue;
+    if (!ROOM_ORDER.includes(name)) continue; // skip TW1 Only, Studio, WFH, Adobe etc.
+    rooms.push({
+      name,
+      bookedYTD: num(data[r][1]),
+      unallocYTD: num(data[r][2]),
+      pctYTD: num(data[r][3]),
+      months: months.map(m => ({
+        month: m.month,
+        booked: num(data[r][m.col]),
+        available: num(data[r][m.col + 1])
+      }))
+    });
+  }
+
+  // The sheet has TWO "Room Utilisation Percentage" sections; the decimal one
+  // lives at ~row 34+. Start after row 30 to skip the counts section above.
+  const pctSectionRow = findRow(data, 'Room Utilisation Percentage (Room & Month)', 30);
+  if (pctSectionRow >= 0) {
+    rooms.forEach((room, ri) => {
+      const pctRow = data[pctSectionRow + 4 + ri];
+      if (!pctRow) return;
+      months.forEach((m, mi) => {
+        const v = num(pctRow[mi + 21]);
+        if (v >= 0 && v <= 1) room.months[mi].pct = v;
+      });
+    });
+  }
+
+  // ── Period scoping (Jan → end of current month)
+  const now = new Date();
+  const todayIdx = now.getMonth();
+  const endOfMonth = new Date(now.getFullYear(), todayIdx + 1, 0);
+  const periodLabel = '1 Jan\u2013' + endOfMonth.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  const passedMonths = months.filter(m => MONTHS.indexOf(m.month) <= todayIdx);
+
+  // Reusable period sum for any (rooms subset, month subset)
+  function sumBookedUnalloc(roomList, monthList) {
+    let booked = 0, unalloc = 0;
+    roomList.forEach(r => {
+      monthList.forEach(m => {
+        const mm = r.months.find(x => x.month === m.month);
+        if (mm) { booked += mm.booked; unalloc += mm.available; }
+      });
+    });
+    return { booked, unalloc };
+  }
+
+  // ── YTD per-room stats (consistent with TOTAL row & KPI boxes)
+  const roomYTDStats = rooms.map(r => {
+    const { booked, unalloc } = sumBookedUnalloc([r], passedMonths);
+    return { ...r, ytdBooked: booked, ytdUnalloc: unalloc, ytdPct: utilisation(booked, unalloc) };
+  });
+
+  const ytdTotals = sumBookedUnalloc(rooms, passedMonths);
+  const overallPct = utilisation(ytdTotals.booked, ytdTotals.unalloc);
+
+  const sortedByPct = [...rooms].sort((a, b) => b.pctYTD - a.pctYTD);
+  const bestRoom  = sortedByPct[0];
+  const worstRoom = sortedByPct[sortedByPct.length - 1];
+
+  const pctDiff      = overallPct - TARGET_PCT;
+  const pctDiffStr   = (pctDiff >= 0 ? '+' : '') + (pctDiff * 100).toFixed(1) + '%';
+  const pctDiffColor = pctDiff >= 0 ? 'var(--green)' : 'var(--red)';
+  const pctDiffLabel = pctDiff >= 0 ? 'above target' : 'below target';
+
+  const ytdAvailable = ytdTotals.booked + ytdTotals.unalloc;
+  const targetDays    = Math.round(ytdAvailable * TARGET_PCT);
+  const daysDiff      = ytdTotals.booked - targetDays;
+  const daysDiffStr   = (daysDiff >= 0 ? '+' : '') + daysDiff + ' days';
+  const daysDiffColor = daysDiff >= 0 ? 'var(--green)' : 'var(--red)';
+  const daysDiffLabel = daysDiff >= 0 ? 'above target' : 'below target';
+
+  document.getElementById('roomKpis').innerHTML = `
+    <div class="kpi accent">
+      <div class="label">Overall Utilisation</div>
+      <div class="value" style="color:var(--accent)">${(overallPct * 100).toFixed(1)}%</div>
+      <div class="sub">${periodLabel}</div>
+      <div class="sub" style="margin-top:6px">vs 66% target &nbsp;<span style="color:${pctDiffColor};font-weight:700">${pctDiffStr} ${pctDiffLabel}</span></div>
+    </div>
+    <div class="kpi green">
+      <div class="label">Total Booked Days</div>
+      <div class="value" style="color:var(--green)">${ytdTotals.booked}</div>
+      <div class="sub">${periodLabel}</div>
+      <div class="sub" style="margin-top:6px">Target: ${targetDays} days &nbsp;<span style="color:${daysDiffColor};font-weight:700">${daysDiffStr} ${daysDiffLabel}</span></div>
+    </div>
+    <div class="kpi orange"><div class="label">Best Room</div><div class="value" style="color:var(--orange);font-size:1.4rem">${bestRoom?.name || '—'}</div><div class="sub">${((bestRoom?.pctYTD || 0) * 100).toFixed(1)}% utilised</div></div>
+    <div class="kpi red"><div class="label">Worst Room</div><div class="value" style="color:var(--red);font-size:1.4rem">${worstRoom?.name || '—'}</div><div class="sub">${((worstRoom?.pctYTD || 0) * 100).toFixed(1)}% utilised</div></div>
+  `;
+
+  // ── Restore canonical room order
+  rooms.sort((a, b) => ROOM_ORDER.indexOf(a.name) - ROOM_ORDER.indexOf(b.name));
+
+  // ── Charts with period toggle
+  state.rooms = { rooms, months };
+
+  const targetLineDays = makeTargetLine('targetLineDays', chart => {
+    const { data } = chart;
+    const totals = data.datasets[0].data.map((v, i) => v + data.datasets[1].data[i]);
+    const max = Math.max(...totals);
+    return max ? max * TARGET_PCT : null;
+  });
+  const targetLinePct = makeTargetLine('targetLinePct', () => TARGET_PCT * 100);
+
+  function buildRoomCharts(mode) {
+    const { rooms, months } = state.rooms;
+    const scopedMonths = mode === 'ytd' ? passedMonths : months;
+    const subtitle = mode === 'ytd' ? periodLabel : 'Full Year';
+    document.getElementById('roomYTDSubtitle').textContent     = `Booked vs available days (${subtitle})`;
+    document.getElementById('roomMonthlySubtitle').textContent = `Monthly utilisation % by room (${subtitle})`;
+
+    // Stacked bar: booked vs unallocated per room
+    const bookedData  = rooms.map(r => sumBookedUnalloc([r], scopedMonths).booked);
+    const unallocData = rooms.map(r => sumBookedUnalloc([r], scopedMonths).unalloc);
+
+    destroyChart('chartRoomYTD');
+    charts['chartRoomYTD'] = new Chart(document.getElementById('chartRoomYTD'), {
+      type: 'bar',
+      plugins: [ChartDataLabels, targetLineDays],
+      data: {
+        labels: rooms.map(r => r.name),
+        datasets: [
+          { label: 'Booked',      data: bookedData,  backgroundColor: '#5b8dee', borderWidth: 0, borderRadius: 4 },
+          { label: 'Unallocated', data: unallocData, backgroundColor: '#2e3248', borderWidth: 0, borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 26 } } },
+          datalabels: {
+            anchor: 'center', align: 'center',
+            color: '#fff', font: { size: 28, weight: '700' },
+            formatter: (v, ctx) => {
+              if (ctx.dataset.label !== 'Booked' || v === 0) return null;
+              const unalloc = ctx.chart.data.datasets[1].data[ctx.dataIndex];
+              const pct = (v + unalloc) > 0 ? ((v / (v + unalloc)) * 100).toFixed(0) : 0;
+              return `${v} days\n${pct}%`;
+            }
+          }
+        },
+        layout: { padding: { right: 130 } },
+        scales: {
+          x: { stacked: true, grid: { color: '#2e3248' }, ticks: { font: { size: 26 } } },
+          y: { stacked: true, grid: { color: '#2e3248' }, beginAtZero: true,
+               title: { display: true, text: 'Days', font: { size: 26 } },
+               ticks: { font: { size: 24 } } }
+        }
+      }
+    });
+
+    // Grouped bar: monthly utilisation % by room — skip months with no bookings at all
+    const chartMonths = scopedMonths.filter(m => rooms.some(r => {
+      const mm = r.months.find(x => x.month === m.month);
+      return mm && mm.booked > 0;
+    }));
+
+    destroyChart('chartRoomMonthly');
+    charts['chartRoomMonthly'] = new Chart(document.getElementById('chartRoomMonthly'), {
+      type: 'bar',
+      plugins: [ChartDataLabels, targetLinePct],
+      data: {
+        labels: chartMonths.map(m => m.month),
+        datasets: rooms.map((r, i) => ({
+          label: r.name,
+          data: chartMonths.map(m => {
+            const mm = r.months.find(x => x.month === m.month);
+            if (!mm || mm.booked === 0) return null;
+            if (mm.pct !== undefined && mm.pct > 0) return +(mm.pct * 100).toFixed(1);
+            return +(utilisation(mm.booked, mm.available) * 100).toFixed(1);
+          }),
+          backgroundColor: PALETTE[i % PALETTE.length] + 'bb',
+          borderColor: PALETTE[i % PALETTE.length],
+          borderWidth: 1, borderRadius: 3
+        }))
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 26 }, padding: 20 } },
+          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}%` } },
+          datalabels: {
+            anchor: 'end', align: 'end', rotation: -90, offset: 4,
+            color: '#e8eaf6', font: { size: 22, weight: '700' },
+            formatter: v => v !== null ? v + '%' : ''
+          }
+        },
+        layout: { padding: { top: 60, right: 130 } },
+        scales: {
+          x: { grid: { color: '#2e3248' }, ticks: { font: { size: 26 } } },
+          y: { grid: { color: '#2e3248' }, min: 0, max: 100,
+               title: { display: true, text: 'Utilisation %', font: { size: 26 } },
+               ticks: { callback: v => v + '%', font: { size: 24 } } }
+        }
+      }
+    });
+
+    // ── Room Detail Table
+    const scopedRoomStats = rooms.map(r => {
+      const { booked, unalloc } = sumBookedUnalloc([r], scopedMonths);
+      return { ...r, sBooked: booked, sUnalloc: unalloc, sPct: utilisation(booked, unalloc) };
+    }).sort((a, b) => ROOM_ORDER.indexOf(a.name) - ROOM_ORDER.indexOf(b.name));
+
+    const scopedTotals = sumBookedUnalloc(rooms, scopedMonths);
+    const scopedOverallPct = utilisation(scopedTotals.booked, scopedTotals.unalloc);
+
+    document.getElementById('tableRooms').innerHTML = `<thead><tr>
+      <th>Room</th><th class="num">Booked Days</th><th class="num">Unallocated</th>
+      <th class="num">Utilisation %</th><th>Progress</th>
+    </tr></thead><tbody>
+    ${scopedRoomStats.map(r => `<tr>
+      <td class="room-name">${r.name}</td>
+      <td class="num">${r.sBooked}</td>
+      <td class="num">${r.sUnalloc}</td>
+      <td class="num">${pctBadge(r.sPct)}</td>
+      <td style="min-width:120px">${progressBar(r.sPct, utilColor(r.sPct))}</td>
+    </tr>`).join('')}
+    <tr style="background:var(--surface2)">
+      <td class="total-row">TOTAL</td>
+      <td class="num total-row">${scopedTotals.booked}</td>
+      <td class="num total-row">${scopedTotals.unalloc}</td>
+      <td class="num">${pctBadge(scopedOverallPct)}</td>
+      <td>${progressBar(scopedOverallPct, 'var(--accent)')}</td>
+    </tr>
+    </tbody>`;
+
+    // ── Monthly Booking Detail table
+    const tableMonths = scopedMonths.filter(m => rooms.some(r => {
+      const mm = r.months.find(x => x.month === m.month);
+      return mm && mm.booked > 0;
+    }));
+
+    document.getElementById('tableRoomMonthly').innerHTML = `<thead><tr>
+      <th>Room</th>
+      ${tableMonths.map(m => `<th class="num" colspan="2">${m.month}</th>`).join('')}
+    </tr>
+    <tr>
+      <th></th>
+      ${tableMonths.map(() => `<th class="num" style="font-size:.7rem;color:#5b8dee">Booked</th><th class="num" style="font-size:.7rem;color:#7b82a6">Avail</th>`).join('')}
+    </tr>
+    </thead><tbody>
+    ${rooms.map(r => `<tr>
+      <td class="room-name">${r.name}</td>
+      ${tableMonths.map(m => {
+        const mm = r.months.find(x => x.month === m.month);
+        if (!mm) return '<td class="num">—</td><td class="num muted">—</td>';
+        const pctVal = utilisation(mm.booked, mm.available);
+        return `<td class="num" style="color:${utilColor(pctVal)};font-weight:600">${mm.booked}</td><td class="num muted">${mm.available}</td>`;
+      }).join('')}
+    </tr>`).join('')}
+    </tbody>`;
+  } // end buildRoomCharts
+
+  window.setRoomView = function(mode, btn) {
+    document.querySelectorAll('#roomPeriodToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    buildRoomCharts(mode);
+  };
+
+  buildRoomCharts('ytd');
+} // end buildRooms
+</script>
+</body>
+</html>

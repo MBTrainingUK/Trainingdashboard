@@ -231,6 +231,7 @@
   <div class="tab-bar">
     <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">📋 Dashboard</button>
     <button class="tab-btn" data-tab="rooms" onclick="switchTab('rooms')">🏢 Room Utilisation</button>
+    <button class="tab-btn" data-tab="fill" onclick="switchTab('fill')">📈 Course Fill</button>
   </div>
 
   <!-- DASHBOARD TAB -->
@@ -319,6 +320,35 @@
       <div class="table-wrap"><table id="tableRoomMonthly"></table></div>
     </div>
   </div>
+
+  <!-- COURSE FILL TAB -->
+  <div id="tab-fill" class="tab-panel">
+    <div id="fillDropZone" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;gap:20px;padding:40px">
+      <div style="font-size:2.5rem">📈</div>
+      <h3 style="font-size:1.4rem;font-weight:600">Load Course Fill Report</h3>
+      <p style="color:var(--muted);text-align:center;max-width:500px">Drop one or more <strong>Course Fill / Performance Report</strong> (.xlsx) files — drop multiple years at once to compare them side by side</p>
+      <div id="fillDropBox" onclick="document.getElementById('fillFileInput').click()"
+           style="border:2px dashed var(--border);border-radius:16px;padding:40px 60px;cursor:pointer;background:var(--surface);transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:12px">
+        <div style="font-size:2rem">📁</div>
+        <div><strong style="color:var(--accent)">Drop files here</strong> or click to browse</div>
+        <span style="color:var(--muted);font-size:.85rem">.xlsx files — you can drop multiple at once</span>
+      </div>
+      <input type="file" id="fillFileInput" accept=".xlsx,.xls" multiple style="display:none" />
+    </div>
+
+    <div id="fillContent" style="display:none;padding:32px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div>
+          <span style="font-size:.85rem;color:var(--muted)">Loaded: </span>
+          <span id="fillFileName" style="font-size:.85rem;color:var(--text);font-weight:600"></span>
+        </div>
+        <button class="reload-btn" onclick="resetFill()">↩ Load different file</button>
+      </div>
+      <div id="fillKpis" class="kpi-grid" style="margin-bottom:32px"></div>
+      <div id="fillYearSections"></div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -1494,6 +1524,331 @@ function buildRooms(data, roomsRawData) {
 
   buildRoomCharts('ytd');
 } // end buildRooms
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COURSE FILL
+// ─────────────────────────────────────────────────────────────────────────────
+const FILL_TARGET = 85;
+const FILL_COLORS = {
+  pc:   { bg: '#4d82c8bb', border: '#4d82c8' },
+  vn:   { bg: '#e6821ebb', border: '#e6821e' },
+  comb: { bg: '#8c96a5bb', border: '#8c96a5' },
+};
+
+function makeFillTargetLine() {
+  return makeTargetLine('fillTargetLine', () => FILL_TARGET,
+    { label: `${FILL_TARGET}% target`, dash: [8, 5], lineWidth: 2.5, font: 'bold 22px Segoe UI, sans-serif' });
+}
+
+function fillPct(s, m) { return m > 0 ? Math.round(s / m * 100) : 0; }
+
+// Parse one sheet of course data → { monthNum: { pc_s, pc_m, vn_s, vn_m } }
+function parseSheetMonthly(data) {
+  const headerIdx = data.findIndex(row => row.some(c => String(c).trim() === 'Template Code'));
+  if (headerIdx < 0) return null;
+  const hdr    = data[headerIdx].map(h => String(h || '').trim());
+  const col    = k => hdr.indexOf(k);
+  const cStart = col('Start Date'), cStud = col('Stud Ct'), cMax = col('Max Ct'),
+        cArea  = col('Area'),       cStatus = col('Class Status');
+  const monthly = {};
+  for (let r = headerIdx + 1; r < data.length; r++) {
+    const row  = data[r];
+    const area = String(row[cArea]   || '').trim();
+    const stat = String(row[cStatus] || '').trim();
+    if (!area.startsWith('Technical'))  continue;
+    if (!['Completed','Released'].includes(stat)) continue;
+    const maxCt  = parseFloat(row[cMax])  || 0; if (!maxCt) continue;
+    const studCt = parseFloat(row[cStud]) || 0;
+    const cat    = area.includes('PC') ? 'pc' : area.includes('Van') ? 'vn' : null;
+    if (!cat) continue;
+    let sd = row[cStart], mNum;
+    if (sd instanceof Date)        { mNum = sd.getMonth() + 1; }
+    else if (typeof sd === 'number') { const d = XLSX.SSF.parse_date_code(sd); mNum = d && d.m; }
+    else continue;
+    if (!mNum) continue;
+    if (!monthly[mNum]) monthly[mNum] = { pc_s:0, pc_m:0, vn_s:0, vn_m:0 };
+    monthly[mNum][cat + '_s'] += studCt;
+    monthly[mNum][cat + '_m'] += maxCt;
+  }
+  return Object.keys(monthly).length ? monthly : null;
+}
+
+// Returns { year: monthlyData } for all year-named sheets, or { detected: monthlyData } for single-sheet files
+function parseFillXlsx(wb) {
+  const toGrid = s => XLSX.utils.sheet_to_json(wb.Sheets[s], { header: 1, defval: '' });
+
+  // Year-named sheets (e.g. "2025", "2026")
+  const yearSheets = wb.SheetNames.filter(s => /^\d{4}$/.test(s.trim()));
+  if (yearSheets.length) {
+    const result = {};
+    yearSheets.forEach(s => {
+      const m = parseSheetMonthly(toGrid(s));
+      if (m) result[s.trim()] = m;
+    });
+    return Object.keys(result).length ? result : null;
+  }
+
+  // Single-sheet fill report — split rows by year, parse each separately
+  const sheetName = wb.SheetNames.find(s => s === 'Technical') || wb.SheetNames[0];
+  const data = toGrid(sheetName);
+  const headerIdx = data.findIndex(row => row.some(c => String(c).trim() === 'Template Code'));
+  if (headerIdx < 0) return null;
+  const hdr    = data[headerIdx].map(h => String(h || '').trim());
+  const cStart = hdr.indexOf('Start Date');
+
+  // Collect unique years present in the data
+  const yearSet = new Set();
+  for (let r = headerIdx + 1; r < data.length; r++) {
+    const sd = data[r][cStart];
+    if (sd instanceof Date) yearSet.add(sd.getFullYear());
+    else if (typeof sd === 'number') {
+      const d = XLSX.SSF.parse_date_code(sd);
+      if (d && d.y) yearSet.add(d.y);
+    }
+  }
+  if (!yearSet.size) return null;
+
+  // Build a synthetic grid per year (header row + matching data rows) and parse
+  const result = {};
+  yearSet.forEach(yr => {
+    const yearRows = [data[headerIdx], ...data.slice(headerIdx + 1).filter(row => {
+      const sd = row[cStart];
+      if (sd instanceof Date) return sd.getFullYear() === yr;
+      if (typeof sd === 'number') { const d = XLSX.SSF.parse_date_code(sd); return d && d.y === yr; }
+      return false;
+    })];
+    const monthly = parseSheetMonthly(yearRows);
+    if (monthly) result[yr] = monthly;
+  });
+  return Object.keys(result).length ? result : null;
+}
+
+function buildFillChart(canvasId, rows) {
+  destroyChart(canvasId);
+  charts[canvasId] = new Chart(document.getElementById(canvasId), {
+    type: 'bar',
+    plugins: [ChartDataLabels, makeFillTargetLine()],
+    data: {
+      labels: rows.map(r => r.m),
+      datasets: [
+        { label: 'PC% Fill',       data: rows.map(r => fillPct(r.pc_s, r.pc_m)),
+          backgroundColor: FILL_COLORS.pc.bg,   borderColor: FILL_COLORS.pc.border,   borderWidth:1, borderRadius:3 },
+        { label: 'VN % Fill',      data: rows.map(r => fillPct(r.vn_s, r.vn_m)),
+          backgroundColor: FILL_COLORS.vn.bg,   borderColor: FILL_COLORS.vn.border,   borderWidth:1, borderRadius:3 },
+        { label: 'PC + VN % Fill', data: rows.map(r => fillPct(r.pc_s+r.vn_s, r.pc_m+r.vn_m)),
+          backgroundColor: FILL_COLORS.comb.bg, borderColor: FILL_COLORS.comb.border, borderWidth:1, borderRadius:3 },
+      ]
+    },
+    options: {
+      responsive: true,
+      layout: { padding: { right: 160 } },
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 20 }, padding: 20 } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}%` } },
+        datalabels: {
+          display: ctx => ctx.parsed && ctx.parsed.y > 0,
+          anchor: 'end', align: 'end',
+          color: '#e8eaf6', font: { size: 18, weight: '600' },
+          formatter: v => v + '%', rotation: -90, offset: 2,
+        }
+      },
+      scales: {
+        x: { grid: { color: '#2e3248' }, ticks: { font: { size: 22 } } },
+        y: { grid: { color: '#2e3248' }, min: 0, max: 115,
+             title: { display: true, text: '% Fill', font: { size: 22 } },
+             ticks: { callback: v => v + '%', font: { size: 20 } } }
+      }
+    }
+  });
+}
+
+function buildFillTable(tableId, monthly) {
+  const tbl     = document.getElementById(tableId);
+  const visRows = MONTHS
+    .map((m, i) => { const d = monthly[i+1]; return d ? { m, ...d } : null; })
+    .filter(r => r && (r.pc_m > 0 || r.vn_m > 0));
+  const totPcS = visRows.reduce((s,r) => s+r.pc_s, 0), totPcM = visRows.reduce((s,r) => s+r.pc_m, 0);
+  const totVnS = visRows.reduce((s,r) => s+r.vn_s, 0), totVnM = visRows.reduce((s,r) => s+r.vn_m, 0);
+
+  function pctCell(s, m) {
+    if (!m) return `<td style="text-align:center;color:var(--muted)">—</td>`;
+    const p = fillPct(s, m);
+    const col = p >= FILL_TARGET ? 'var(--green)' : p >= 75 ? 'var(--orange)' : 'var(--red)';
+    return `<td style="text-align:center;color:${col};font-weight:600">${p}%</td>`;
+  }
+  const rowDefs = [
+    { label:'PC% Fill',       color:'#4d82c8', bg:'rgba(77,130,200,0.08)',  s:r=>r.pc_s, m:r=>r.pc_m },
+    { label:'VN % Fill',      color:'#e6821e', bg:'rgba(230,130,30,0.08)',  s:r=>r.vn_s, m:r=>r.vn_m },
+    { label:'PC + VN % Fill', color:'#8c96a5', bg:'rgba(140,150,165,0.06)', s:r=>r.pc_s+r.vn_s, m:r=>r.pc_m+r.vn_m },
+  ];
+  const totDefs = [{ s:totPcS,m:totPcM },{ s:totVnS,m:totVnM },{ s:totPcS+totVnS,m:totPcM+totVnM }];
+
+  tbl.innerHTML = `<thead><tr>
+    <th style="text-align:left;min-width:130px"></th>
+    ${visRows.map(r=>`<th style="text-align:center">${r.m}</th>`).join('')}
+    <th style="text-align:center;color:var(--accent)">TOTAL</th>
+  </tr></thead><tbody>
+  ${rowDefs.map((rd,ri) => `<tr style="background:${rd.bg}">
+    <td style="text-align:left;padding:10px 14px;font-weight:700;color:${rd.color}">
+      <span style="width:11px;height:11px;background:${rd.color};display:inline-block;border-radius:2px;margin-right:6px;vertical-align:middle"></span>${rd.label}
+    </td>
+    ${visRows.map(r=>pctCell(rd.s(r),rd.m(r))).join('')}
+    ${pctCell(totDefs[ri].s,totDefs[ri].m)}
+  </tr>`).join('')}
+  </tbody>`;
+}
+
+function buildFillKpis(yearDataMap) {
+  const years      = Object.keys(yearDataMap).map(Number).sort((a,b) => b-a);
+  const latestYear = years[0];
+  const monthly    = yearDataMap[latestYear];
+  const active     = MONTHS.map((m,i) => ({ m, d: monthly[i+1] })).filter(x => x.d && (x.d.pc_m > 0 || x.d.vn_m > 0));
+  if (!active.length) return;
+
+  const totPcS = active.reduce((s,x)=>s+x.d.pc_s,0), totPcM = active.reduce((s,x)=>s+x.d.pc_m,0);
+  const totVnS = active.reduce((s,x)=>s+x.d.vn_s,0), totVnM = active.reduce((s,x)=>s+x.d.vn_m,0);
+  const pcPct  = fillPct(totPcS,totPcM), vnPct = fillPct(totVnS,totVnM);
+  const combPct = fillPct(totPcS+totVnS,totPcM+totVnM);
+  const lastMonth = active[active.length-1].m;
+  const isFullYear = active.length === 12;
+  const periodLabel = isFullYear ? `Full year ${latestYear}` : `Jan – ${lastMonth} ${latestYear}`;
+
+  function kpiColor(p) { return p>=FILL_TARGET?'var(--green)':p>=75?'var(--orange)':'var(--red)'; }
+  function vsTarget(p) {
+    const diff = p - FILL_TARGET;
+    const col  = diff >= 0 ? 'var(--green)' : 'var(--red)';
+    return `<span style="color:${col};font-weight:700">${diff>=0?'+':''}${diff}% vs ${FILL_TARGET}% target</span>`;
+  }
+
+  // Prior-year summary for the target KPI card
+  const priorYears = years.slice(1);
+  const priorSummary = priorYears.map(y => {
+    const pm = yearDataMap[y];
+    const allM = Object.values(pm);
+    const ps = allM.reduce((s,d)=>s+d.pc_s,0), pmx = allM.reduce((s,d)=>s+d.pc_m,0);
+    const vs = allM.reduce((s,d)=>s+d.vn_s,0), vmx = allM.reduce((s,d)=>s+d.vn_m,0);
+    return `${y}: PC ${fillPct(ps,pmx)}% · VN ${fillPct(vs,vmx)}%`;
+  }).join(' &nbsp;|&nbsp; ');
+
+  document.getElementById('fillKpis').innerHTML = `
+    <div class="kpi" style="border-color:#4d82c844">
+      <div class="label">PC Fill Rate</div>
+      <div class="value" style="color:${kpiColor(pcPct)}">${pcPct}%</div>
+      <div class="sub">${periodLabel} &nbsp;·&nbsp; ${totPcS} of ${totPcM} seats</div>
+      <div class="sub" style="margin-top:4px">${vsTarget(pcPct)}</div>
+    </div>
+    <div class="kpi" style="border-color:#e6821e44">
+      <div class="label">VN Fill Rate</div>
+      <div class="value" style="color:${kpiColor(vnPct)}">${vnPct}%</div>
+      <div class="sub">${periodLabel} &nbsp;·&nbsp; ${totVnS} of ${totVnM} seats</div>
+      <div class="sub" style="margin-top:4px">${vsTarget(vnPct)}</div>
+    </div>
+    <div class="kpi" style="border-color:#8c96a544">
+      <div class="label">PC + VN Combined</div>
+      <div class="value" style="color:${kpiColor(combPct)}">${combPct}%</div>
+      <div class="sub">${periodLabel} &nbsp;·&nbsp; ${totPcS+totVnS} of ${totPcM+totVnM} seats</div>
+      <div class="sub" style="margin-top:4px">${vsTarget(combPct)}</div>
+    </div>
+    <div class="kpi" style="border-color:var(--yellow)44">
+      <div class="label">Target (Calex KPI)</div>
+      <div class="value" style="color:var(--yellow)">${FILL_TARGET}%</div>
+      ${priorSummary ? `<div class="sub" style="margin-top:4px">${priorSummary}</div>` : ''}
+    </div>`;
+}
+
+function buildFillYearSections(yearDataMap) {
+  const years   = Object.keys(yearDataMap).map(Number).sort((a,b) => b-a);
+  const container = document.getElementById('fillYearSections');
+
+  // Destroy any previously rendered fill charts
+  Object.keys(charts).filter(k => k.startsWith('chartFill_')).forEach(k => destroyChart(k));
+
+  let html = '';
+  years.forEach((yr, idx) => {
+    const isLatest    = idx === 0;
+    const canvasId    = `chartFill_${yr}`;
+    const tableId     = `tableFill_${yr}`;
+    const monthly     = yearDataMap[yr];
+    const activeCount = MONTHS.filter((_,i) => monthly[i+1] && (monthly[i+1].pc_m > 0 || monthly[i+1].vn_m > 0)).length;
+    const pill        = isLatest
+      ? (activeCount < 12 ? `YTD (${activeCount} months)` : 'Full Year')
+      : 'Full Year Comparison';
+    const divider     = idx > 0 ? '<hr class="section-divider" />' : '';
+    html += `${divider}
+    <div class="section">
+      <div class="section-header">
+        <h3>Course Fill | ${yr}</h3>
+        <span class="pill">${pill}</span>
+      </div>
+      <div class="chart-card">
+        <h4>PC, VN and Combined fill rate — ${yr}</h4>
+        <div class="chart-wrap"><canvas id="${canvasId}" height="90"></canvas></div>
+      </div>
+      <div style="margin-top:16px" class="table-wrap"><table id="${tableId}"></table></div>
+    </div>`;
+  });
+  container.innerHTML = html;
+
+  // Now build each chart (DOM must exist first)
+  years.forEach(yr => {
+    const monthly = yearDataMap[yr];
+    const rows    = MONTHS.map((m,i) => { const d=monthly[i+1]; return d?{m,...d}:{m,pc_s:0,pc_m:0,vn_s:0,vn_m:0}; });
+    buildFillChart(`chartFill_${yr}`, rows);
+    buildFillTable(`tableFill_${yr}`, monthly);
+  });
+}
+
+function processFillFiles(files) {
+  const fileArray = Array.from(files);
+  const results   = [];
+  let loaded = 0;
+
+  fileArray.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const map = parseFillXlsx(wb);
+      if (map) results.push({ name: file.name, map });
+      loaded++;
+      if (loaded === fileArray.length) {
+        if (!results.length) {
+          alert('Could not read course fill data from any of the dropped files.');
+          return;
+        }
+        // Merge all yearDataMaps — later files win for duplicate years
+        const merged = {};
+        results.forEach(r => Object.assign(merged, r.map));
+        const label = results.map(r => r.name.replace(/\.xlsx?$/, '')).join(' + ');
+        document.getElementById('fillDropZone').style.display = 'none';
+        document.getElementById('fillContent').style.display  = 'block';
+        document.getElementById('fillFileName').textContent   = label;
+        buildFillKpis(merged);
+        buildFillYearSections(merged);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function resetFill() {
+  Object.keys(charts).filter(k => k.startsWith('chartFill_')).forEach(k => destroyChart(k));
+  document.getElementById('fillYearSections').innerHTML = '';
+  document.getElementById('fillKpis').innerHTML         = '';
+  document.getElementById('fillDropZone').style.display = 'flex';
+  document.getElementById('fillContent').style.display  = 'none';
+  document.getElementById('fillFileInput').value        = '';
+}
+
+// ─── FILL FILE INPUT / DRAG-DROP ─────────────────────────────────────────────
+const fillDropBox   = document.getElementById('fillDropBox');
+const fillFileInput = document.getElementById('fillFileInput');
+fillDropBox.addEventListener('dragover',  e => { e.preventDefault(); fillDropBox.style.borderColor = 'var(--accent)'; });
+fillDropBox.addEventListener('dragleave', () => { fillDropBox.style.borderColor = ''; });
+fillDropBox.addEventListener('drop', e => {
+  e.preventDefault(); fillDropBox.style.borderColor = '';
+  if (e.dataTransfer.files.length) processFillFiles(e.dataTransfer.files);
+});
+fillFileInput.addEventListener('change', e => { if (e.target.files.length) processFillFiles(e.target.files); });
 </script>
 </body>
 </html>

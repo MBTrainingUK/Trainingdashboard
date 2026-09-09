@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Training Schedule Viewer v2</title>
+  <title>Training Schedule Viewer</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
@@ -201,7 +201,7 @@
 <!-- DROP ZONE -->
 <div id="dropZone">
   <div class="logo">📊</div>
-  <h1>Master Report Viewer v2</h1>
+  <h1>Master Report Viewer</h1>
   <p>Interactive presentation of your training & room utilisation data</p>
   <p style="font-size:.85rem; color: var(--accent); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 20px;">💡 To get started, add the <strong>Technician Training Schedule</strong> Excel file</p>
   <div id="dropBox" onclick="document.getElementById('fileInput').click()">
@@ -356,13 +356,9 @@
 const PALETTE = ['#5b8dee','#7c5cbf','#3ecf8e','#f5a623','#e05c5c','#f5c842','#5bc8f5','#b96ef5','#f5865b'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const ROOM_ORDER = ['TW1+Studio','TW2','TW3','TW5','TW10','TW11','TR1'];
+const ROOM_ORDER = ['TW1+Studio','TW2','TW3','TW10','TW11','TR1'];
 const TARGET_PCT = 0.66;
 const TRAINER_MONTHLY_TARGET = 12.5;
-const TRAINER_DATE_RULES = {
-  Victor: { end: '2026-07-08' },
-  James:  { start: '2026-09-14' }
-};
 
 // ─── CHART.JS DEFAULTS ───────────────────────────────────────────────────────
 Chart.defaults.color = '#7b82a6';
@@ -431,7 +427,7 @@ function processFile(file) {
       document.getElementById('fileDate').textContent  = 'Loaded ' + new Date().toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'});
 
       buildDashboard(dashData, schedData);
-      buildRooms(roomData, roomsRawData, schedData);
+      buildRooms(roomData, roomsRawData);
 
       document.getElementById('loadingOverlay').style.display = 'none';
       document.getElementById('dropZone').style.display = 'none';
@@ -506,39 +502,6 @@ function makeTargetLine(id, targetFn, opts = {}) {
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD
 // ─────────────────────────────────────────────────────────────────────────────
-function trainerIsActiveOn(name, date) {
-  const rule = TRAINER_DATE_RULES[name];
-  if (!rule || !(date instanceof Date)) return true;
-  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  if (rule.start && day < new Date(rule.start + 'T00:00:00')) return false;
-  if (rule.end && day > new Date(rule.end + 'T00:00:00')) return false;
-  return true;
-}
-
-function getScheduleYear(schedData) {
-  for (let r = 0; r < schedData.length; r++) {
-    if (schedData[r][0] instanceof Date) return schedData[r][0].getFullYear();
-  }
-  return 2026;
-}
-
-function trainerTargetForRows(name, rows) {
-  const firstName = cleanName(name).split(/\s+/)[0] === 'Peter' ? 'Pete' : cleanName(name).split(/\s+/)[0];
-  const rule = TRAINER_DATE_RULES[firstName];
-  if (!rule || !rule.start) return rows.length * TRAINER_MONTHLY_TARGET;
-  const start = new Date(rule.start + 'T00:00:00');
-  return rows.reduce((target, row) => {
-    const monthIndex = MONTHS.indexOf(row.month);
-    if (monthIndex < 0) return target;
-    const monthStart = new Date(start.getFullYear(), monthIndex, 1);
-    const monthEnd = new Date(start.getFullYear(), monthIndex + 1, 0);
-    const firstActiveDay = start > monthStart ? start : monthStart;
-    if (firstActiveDay > monthEnd) return target;
-    const activeDays = monthEnd.getDate() - firstActiveDay.getDate() + 1;
-    return target + TRAINER_MONTHLY_TARGET * (activeDays / monthEnd.getDate());
-  }, 0);
-}
-
 function buildDashboard(data, schedData = []) {
   // ── Parse Schedule 2026 for per-trainer unique courses, activity counts & unassigned days
   // The schedule has first-name columns: Gary, Robin, Victor, Pete, Andy, Jon, Tayler
@@ -547,14 +510,13 @@ function buildDashboard(data, schedData = []) {
   const SCHED_SKIP = new Set(['Weekend', 'Bank Holiday']);
 
   const courseStats    = {}; // firstName → { unique, days, courseMap }
-  const scheduledTrainingByMonth = {}; // firstName → month number → course days
   const unassignedCounts    = {}; // firstName → empty cell count (full year)
   const unassignedCountsYTD = {}; // firstName → empty cell count (YTD)
   const activityCounts    = {}; // activityName → { firstName → count } (full year)
   const activityCountsYTD = {}; // activityName → { firstName → count } (YTD)
   if (schedData.length > 1) {
     const schedHeader = schedData[0];
-    const TRAINER_FIRST_NAMES = ['Gary','Robin','Victor','Pete','Andy','Jon','Tayler','James'];
+    const TRAINER_FIRST_NAMES = ['Gary','Robin','Victor','Pete','Andy','Jon','Tayler'];
     const schedTrainerCols = [];
     schedHeader.forEach((h, i) => {
       if (TRAINER_FIRST_NAMES.includes(String(h || '').trim()))
@@ -562,7 +524,6 @@ function buildDashboard(data, schedData = []) {
     });
     schedTrainerCols.forEach(({ name }) => {
       courseStats[name] = { unique: 0, days: 0, courseMap: {} };
-      scheduledTrainingByMonth[name] = {};
       unassignedCounts[name] = 0;
       unassignedCountsYTD[name] = 0;
     });
@@ -571,12 +532,11 @@ function buildDashboard(data, schedData = []) {
     const _ytdMaxMonth = _now.getMonth() + 1; // e.g. May = 5
     for (let r = 6; r < schedData.length; r++) {
       const row = schedData[r];
-      const scheduleDate = row[0] instanceof Date ? row[0] : null;
-      if (!scheduleDate) continue;
+      const hasDate = row[0] !== null && row[0] !== '' && !isNaN(Number(row[0]));
+      if (!hasDate) continue;
       const monthNum = Number(row[1] || 0);
       const isYTDRow = monthNum >= 1 && monthNum <= _ytdMaxMonth;
       schedTrainerCols.forEach(({ name, col }) => {
-        if (!trainerIsActiveOn(name, scheduleDate)) return;
         const val = String(row[col] || '').trim();
         if (!val) {
           unassignedCounts[name]++;
@@ -587,7 +547,6 @@ function buildDashboard(data, schedData = []) {
         const isCourse = /^[A-Z]\d/.test(val) || val.startsWith('Comp') || val.startsWith('Open') || val.startsWith('Tak');
         if (isCourse) {
           courseStats[name].courseMap[val] = (courseStats[name].courseMap[val] || 0) + 1;
-          scheduledTrainingByMonth[name][monthNum] = (scheduledTrainingByMonth[name][monthNum] || 0) + 1;
         } else {
           if (!activityCounts[val]) activityCounts[val] = {};
           activityCounts[val][name] = (activityCounts[val][name] || 0) + 1;
@@ -615,13 +574,11 @@ function buildDashboard(data, schedData = []) {
   // ── Monthly section
   const monthlyHeaderRow = findRow(data, 'Trainer Days (Month)');
   const trainerRow = monthlyHeaderRow + 1;
-  const reportYear = getScheduleYear(schedData);
-  const trainerEntries = data[trainerRow]
-    .map((v, i) => ({ name: cleanName(v), col: i }))
-    .filter(x => x.name && !x.name.toLowerCase().includes('target') && !x.name.includes('Total'))
-    .filter(x => !(reportYear >= 2027 && firstNameOf(x.name) === 'Victor'));
-  const trainers = trainerEntries.map(x => x.name);
-  const trainerCols = trainerEntries.map(x => x.col);
+  const trainers = data[trainerRow].slice(2, -1).map(cleanName).filter(t => t && t !== 'Target' && !t.includes('Total'));
+  const trainerCols = data[trainerRow]
+    .map((v, i) => ({ v: cleanName(v), i }))
+    .filter(x => x.v && x.v !== 'Target' && !x.v.includes('Total'))
+    .map(x => x.i);
   const totalCol  = data[trainerRow].findIndex(v => String(v).includes('Total'));
   let targetCol = data[trainerRow].findIndex(v => String(v).includes('Target'));
   if (targetCol < 0) targetCol = 1; // Schedule file: target values are in col 1 of each data row
@@ -632,14 +589,8 @@ function buildDashboard(data, schedData = []) {
     const month = String(data[r][0] || '').trim();
     if (MONTHS.includes(month)) {
       const row = { month, target: num(data[r][targetCol]) };
-      trainerCols.forEach((c, i) => {
-        const trainer = trainers[i];
-        const firstName = firstNameOf(trainer);
-        row[trainer] = scheduledTrainingByMonth[firstName]
-          ? (scheduledTrainingByMonth[firstName][MONTHS.indexOf(month) + 1] || 0)
-          : num(data[r][c]);
-      });
-      row.total = trainers.reduce((sum, trainer) => sum + (row[trainer] || 0), 0);
+      trainerCols.forEach((c, i) => row[trainers[i]] = num(data[r][c]));
+      row.total = num(data[r][totalCol]);
       monthlyRows.push(row);
     } else if (month.includes('Total Individual')) {
       ytdRow = { month: 'YTD Total', target: null };
@@ -670,9 +621,7 @@ function buildDashboard(data, schedData = []) {
   // actTrainers full names still read from Dashboard header for ordering
   const actHeaderRow = findRow(data, 'Other Activities');
   const actTrainerRow = actHeaderRow + 1;
-  const actTrainers = data[actTrainerRow].slice(2, -1).map(cleanName)
-    .filter(t => t && t !== 'Total Team')
-    .filter(t => !(reportYear >= 2027 && firstNameOf(t) === 'Victor'));
+  const actTrainers = data[actTrainerRow].slice(2, -1).map(cleanName).filter(t => t && t !== 'Total Team');
 
   // ── KPIs (Jan → current month only)
   const now = new Date();
@@ -684,16 +633,15 @@ function buildDashboard(data, schedData = []) {
   trainers.forEach(t => { ytdDelivered[t] = ytdMonthRows.reduce((s, r) => s + (r[t] || 0), 0); });
   const ytdTotal = ytdMonthRows.reduce((s, r) => s + r.total, 0);
 
-  const ytdTargetByTrainer = {};
-  trainers.forEach(t => { ytdTargetByTrainer[t] = trainerTargetForRows(t, ytdMonthRows); });
-  const teamTarget = trainers.reduce((sum, t) => sum + ytdTargetByTrainer[t], 0);
+  const perTrainerTarget = activeMonths * TRAINER_MONTHLY_TARGET;
+  const teamTarget = perTrainerTarget * trainers.length;
   const pctVsTarget = teamTarget > 0 ? (ytdTotal / teamTarget * 100).toFixed(0) : 0;
   const avgPerTrainer = trainers.length > 0 ? (ytdTotal / trainers.length).toFixed(0) : 0;
   const endOfMonth = new Date(now.getFullYear(), todayMonth + 1, 0);
   const periodLabel = endOfMonth.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
 
   // ── Utilisation KPI builder (responds to YTD/Full Year toggle)
-  function buildUtilisationKpis(trainingDays, actCountsSrc, unassignedSrc, activeMonthCount, targetRows) {
+  function buildUtilisationKpis(trainingDays, actCountsSrc, unassignedSrc, activeMonthCount) {
     // Sum all activity days across all trainers
     const activityDays = Object.values(actCountsSrc)
       .reduce((sum, trainerMap) => sum + Object.values(trainerMap).reduce((s, v) => s + v, 0), 0);
@@ -705,8 +653,8 @@ function buildDashboard(data, schedData = []) {
     const unassignedPct = totalDays > 0 ? (unassignedDays / totalDays * 100) : 0;
     const utilisedPct  = trainingPct + activityPct;
 
-    const teamTarget = trainers.reduce((sum, t) => sum + trainerTargetForRows(t, targetRows), 0);
-    const teamTargetDisplay = Math.round(teamTarget);
+    const perTrainerTarget = activeMonthCount * TRAINER_MONTHLY_TARGET;
+    const teamTarget = perTrainerTarget * trainers.length;
     const pctVsTarget = teamTarget > 0 ? (trainingDays / teamTarget * 100).toFixed(0) : 0;
     const avgPerTrainer = trainers.length > 0 ? (trainingDays / trainers.length).toFixed(1) : 0;
 
@@ -715,7 +663,7 @@ function buildDashboard(data, schedData = []) {
         <div class="label">Team Training Days</div>
         <div class="value" style="color:var(--accent)">${trainingDays}</div>
         <div class="sub">${trainers.length} trainers &nbsp;·&nbsp; avg ${avgPerTrainer} days each</div>
-        <div class="sub" style="margin-top:4px">vs target ${teamTargetDisplay} &nbsp;<span style="color:${Number(pctVsTarget)>=100?'var(--green)':'var(--red)'};font-weight:700">${pctVsTarget}%</span></div>
+        <div class="sub" style="margin-top:4px">vs target ${teamTarget} &nbsp;<span style="color:${Number(pctVsTarget)>=100?'var(--green)':'var(--red)'};font-weight:700">${pctVsTarget}%</span></div>
       </div>
       <div class="kpi" style="border-color:#3ecf8e44">
         <div class="label">Training %</div>
@@ -747,11 +695,10 @@ function buildDashboard(data, schedData = []) {
   document.getElementById('trainerCards').innerHTML = trainers.map(t => {
     const delivered = ytdDelivered[t] || 0;
     const fullYear  = fullYearByTrainer[t] || 0;
-    const target = ytdTargetByTrainer[t];
-    const pct = target > 0 ? Math.min(100, (delivered / target) * 100) : 0;
+    const pct = perTrainerTarget > 0 ? Math.min(100, (delivered / perTrainerTarget) * 100) : 0;
     const color = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
-    const diff = delivered - target;
-    const diffStr = diff >= 0 ? `+${Math.round(diff)} ahead` : `${Math.round(diff)} behind`;
+    const diff = delivered - perTrainerTarget;
+    const diffStr = diff >= 0 ? `+${diff.toFixed(1)} ahead` : `${diff.toFixed(1)} behind`;
     const diffColor = diff >= 0 ? 'var(--green)' : 'var(--red)';
     // Match trainer to course analysis initials
     const firstName = firstNameOf(t);
@@ -889,8 +836,7 @@ function buildDashboard(data, schedData = []) {
       trainingTotal,
       isYTD ? s.activityCountsYTD : s.activityCounts,
       isYTD ? s.unassignedCountsYTD : s.unassignedCounts,
-      isYTD ? s.activeMonths : 12,
-      filteredMonthly
+      isYTD ? s.activeMonths : 12
     );
   };
 
@@ -899,7 +845,7 @@ function buildDashboard(data, schedData = []) {
   const ytdCumRows     = cumRows.filter(r => MONTHS.indexOf(r.month) <= todayMonth);
   const ytdTrainingTotal = ytdMonthlyRows.reduce((s, r) => s + r.total, 0);
   buildActivitiesSection(activityCountsYTD, unassignedCountsYTD, ytdTrainingTotal, 'ytd');
-  buildUtilisationKpis(ytdTrainingTotal, activityCountsYTD, unassignedCountsYTD, activeMonths, ytdMonthlyRows);
+  buildUtilisationKpis(ytdTrainingTotal, activityCountsYTD, unassignedCountsYTD, activeMonths);
   buildMonthlyChart(ytdMonthlyRows);
   buildCumulativeChart(ytdCumRows, todayMonth);
   buildMonthlyTable(ytdMonthlyRows, null);
@@ -1164,7 +1110,7 @@ function buildDashboard(data, schedData = []) {
 // Rooms: Col 0=Week#, Col 1=Date, Col 4=TW1+Studio, Col 5=TW2, Col 6=TW3,
 //        Col 7=TW10, Col 8=TW11, Col 9=TR1
 // ─────────────────────────────────────────────────────────────────────────────
-function buildWeeklyHeatmap(data, schedData = []) {
+function buildWeeklyHeatmap(data) {
   const container = document.getElementById('weeklyHeatmap');
   if (!container) return;
   if (!data || data.length < 3) {
@@ -1201,24 +1147,6 @@ function buildWeeklyHeatmap(data, schedData = []) {
   // Left section column indices → room labels (skipping TW1 Only & Studio Only)
   const ROOM_COLS   = [4, 5, 6, 7, 8, 9];
   const ROOM_LABELS = ['TW1+Studio', 'TW2', 'TW3', 'TW10', 'TW11', 'TR1'];
-  const tw5ByWeek = {};
-  const tw5Dates = new Set();
-  if (schedData.length > 1) {
-    const roomColumns = [5, 8, 11, 14, 17, 20, 23, 26, 31, 34, 37];
-    let currentScheduleWeek = null;
-    schedData.slice(1).forEach(row => {
-      const date = row[0];
-      const rowWeek = Number(row[2]);
-      if (Number.isInteger(rowWeek) && rowWeek >= 1 && rowWeek <= 52) currentScheduleWeek = rowWeek;
-      if (!(date instanceof Date) || !currentScheduleWeek || date.getDay() === 0 || date.getDay() === 6) return;
-      if (!roomColumns.some(col => String(row[col] || '').trim() === 'TW5')) return;
-      const dateKey = date.toISOString().slice(0, 10);
-      if (tw5Dates.has(dateKey)) return;
-      tw5Dates.add(dateKey);
-      tw5ByWeek[currentScheduleWeek] = (tw5ByWeek[currentScheduleWeek] || 0) + 1;
-    });
-  }
-  if (tw5Dates.size) ROOM_LABELS.splice(3, 0, 'TW5');
   const ALL_HEADERS = ['Wk', ...ROOM_LABELS, 'Total', 'Cumulative'];
 
   // Year training totals from row 1 ('Training:' summary row)
@@ -1262,10 +1190,7 @@ function buildWeeklyHeatmap(data, schedData = []) {
   const MAX_DAYS = 5; // working days per week per room
   let cumulative = 0;
   const finalRows = weekRows.map(row => {
-    const bookedValues = tw5Dates.size
-      ? [...row.slice(1, 4), tw5ByWeek[row[0]] || 0, ...row.slice(4)]
-      : row.slice(1);
-    const roomVals = bookedValues.map(v => Math.max(0, MAX_DAYS - v)); // invert: show unused days
+    const roomVals = row.slice(1).map(v => Math.max(0, MAX_DAYS - v)); // invert: show unused days
     const total = roomVals.reduce((s, v) => s + v, 0);
     cumulative += total;
     return [row[0], ...roomVals, total, cumulative];
@@ -1273,18 +1198,15 @@ function buildWeeklyHeatmap(data, schedData = []) {
 
   // Year totals row — also invert (max possible = 52 weeks × 5 days per room)
   const MAX_YEAR = 52 * MAX_DAYS;
-  const allYearTotals = tw5Dates.size
-    ? [...yearTotals.slice(0, 3), tw5Dates.size, ...yearTotals.slice(3)]
-    : yearTotals;
-  const yearUnused = allYearTotals.map(v => Math.max(0, MAX_YEAR - v));
+  const yearUnused = yearTotals.map(v => Math.max(0, MAX_YEAR - v));
 
   // ── Render ────────────────────────────────────────────────────────────────
   function renderCell(val, colIdx) {
     const v = val != null && val !== '' ? val : 0;
     const s = String(v);
     if (colIdx === 0) return `<td class="hm-week">${s}</td>`;
-    if (colIdx <= ROOM_LABELS.length) return `<td style="background:${heatColor(v)};color:#111">${s}</td>`;
-    if (colIdx === ROOM_LABELS.length + 1) return `<td style="background:${heatColor(v / ROOM_LABELS.length)};color:#111;font-weight:600">${s}</td>`;
+    if (colIdx <= 6)  return `<td style="background:${heatColor(v)};color:#111">${s}</td>`;
+    if (colIdx === 7) return `<td style="background:${heatColor(v / ROOM_COLS.length)};color:#111;font-weight:600">${s}</td>`;
     return `<td style="background:#12274e;color:#8aacf5">${s}</td>`;
   }
 
@@ -1317,8 +1239,8 @@ function buildWeeklyHeatmap(data, schedData = []) {
 // ─────────────────────────────────────────────────────────────────────────────
 // ROOM UTILISATION
 // ─────────────────────────────────────────────────────────────────────────────
-function buildRooms(data, roomsRawData, schedData = []) {
-  buildWeeklyHeatmap(roomsRawData, schedData);
+function buildRooms(data, roomsRawData) {
+  buildWeeklyHeatmap(roomsRawData);
 
   const ytdViewRow = findRow(data, 'YEAR VIEW');
   const subRow = ytdViewRow + 3;
@@ -1349,46 +1271,6 @@ function buildRooms(data, roomsRawData, schedData = []) {
         booked: num(data[r][m.col]),
         available: num(data[r][m.col + 1])
       }))
-    });
-  }
-
-  // TW5 is present in the dated schedule but not in the workbook room summaries.
-  if (!rooms.some(room => room.name === 'TW5') && schedData.length > 1) {
-    const roomColumns = [5, 8, 11, 14, 17, 20, 23, 26, 31, 34, 37];
-    const bookedByMonth = {};
-    const bookedDatesByMonth = {};
-    const bookedDates = new Set();
-    schedData.slice(1).forEach(row => {
-      const date = row[0];
-      if (!(date instanceof Date) || date.getDay() === 0 || date.getDay() === 6) return;
-      const month = MONTHS[date.getMonth()];
-      const dateKey = date.toISOString().slice(0, 10);
-      const isBankHoliday = row.some(value => String(value || '').trim() === 'Bank Holiday');
-      roomColumns.forEach(col => {
-        if (String(row[col] || '').trim() !== 'TW5' || isBankHoliday) return;
-        if (!bookedDatesByMonth[month]) bookedDatesByMonth[month] = new Set();
-        bookedDatesByMonth[month].add(dateKey);
-      });
-    });
-    Object.keys(bookedDatesByMonth).forEach(month => {
-      bookedByMonth[month] = bookedDatesByMonth[month].size;
-      bookedDatesByMonth[month].forEach(dateKey => bookedDates.add(dateKey));
-    });
-    const referenceRoom = rooms[0];
-    const monthsWithData = months.map(month => ({
-      month: month.month,
-      booked: bookedByMonth[month.month] || 0,
-      available: Math.max(0, (referenceRoom?.months.find(m => m.month === month.month)?.booked || 0)
-        + (referenceRoom?.months.find(m => m.month === month.month)?.available || 0)
-        - (bookedByMonth[month.month] || 0))
-    }));
-    const tw5Unallocated = monthsWithData.reduce((sum, month) => sum + month.available, 0);
-    rooms.push({
-      name: 'TW5',
-      bookedYTD: bookedDates.size,
-      unallocYTD: tw5Unallocated,
-      pctYTD: utilisation(bookedDates.size, tw5Unallocated),
-      months: monthsWithData
     });
   }
 

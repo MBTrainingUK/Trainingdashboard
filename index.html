@@ -585,8 +585,10 @@ function buildDashboard(data, schedData = []) {
         }
         if (SCHED_SKIP.has(val)) return;
         const isCourse = /^[A-Z]\d/.test(val) || val.startsWith('Comp') || val.startsWith('Open') || val.startsWith('Tak');
-        if (isCourse) {
-          courseStats[name].courseMap[val] = (courseStats[name].courseMap[val] || 0) + 1;
+        // Second Trainer counts as a trainer day (matches the Excel dashboard) but has no course code
+        const isSecondTrainer = val === 'Second Trainer';
+        if (isCourse || isSecondTrainer) {
+          if (isCourse) courseStats[name].courseMap[val] = (courseStats[name].courseMap[val] || 0) + 1;
           scheduledTrainingByMonth[name][monthNum] = (scheduledTrainingByMonth[name][monthNum] || 0) + 1;
         } else {
           if (!activityCounts[val]) activityCounts[val] = {};

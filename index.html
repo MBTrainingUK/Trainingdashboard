@@ -627,7 +627,7 @@ function buildDashboard(data, schedData = [], tuData = []) {
         const val = String(row[col] || '').trim();
         const isCourse = /^[A-Z]\d/.test(val) || val.startsWith('Comp') || val.startsWith('Open') || val.startsWith('Tak');
         if (isCourse) courseStats[name].courseMap[val] = (courseStats[name].courseMap[val] || 0) + 1;
-        if (inYear && SCHEDULE_ONLY_ACTIVITIES.includes(val)) {
+        if (inYear && (SCHEDULE_ONLY_ACTIVITIES.includes(val) || val === 'Second Trainer')) {
           if (!scheduleActs[val]) scheduleActs[val] = {};
           scheduleActs[val][name] = (scheduleActs[val][name] || 0) + 1;
           if (isYTD) {
@@ -1162,15 +1162,26 @@ function buildDashboard(data, schedData = [], tuData = []) {
 
     const activityBars = rows.filter(r => r.activity !== 'Total Individual').sort((a, b) => b.total - a.total);
     const actGrandTotal = trainingTotal + activityBars.reduce((s, r) => s + r.total, 0);
+
+    // Second Trainer is already inside Dashboard training days, so it's shown for information only
+    const stCounts = (mode === 'ytd' ? scheduleActsYTD : scheduleActs)['Second Trainer'] || {};
+    const infoRow = { activity: 'Second Trainer', info: true, total: 0 };
+    actTrainers.forEach(t => { infoRow[t] = stCounts[firstNameOf(t)] || 0; infoRow.total += infoRow[t]; });
+    const chartBars = infoRow.total > 0 ? [...activityBars, infoRow] : activityBars;
+    if (infoRow.total > 0) {
+      const uIdx = rows.findIndex(r => r.activity === 'Unassigned');
+      rows.splice(uIdx < 0 ? rows.length : uIdx, 0, infoRow);
+    }
+
     destroyChart('chartActivities');
     charts['chartActivities'] = new Chart(document.getElementById('chartActivities'), {
       type: 'bar',
       plugins: [ChartDataLabels],
       data: {
-        labels: activityBars.map(r => r.activity),
+        labels: chartBars.map(r => r.info ? `${r.activity} (in training)` : r.activity),
         datasets: [{
-          data: activityBars.map(r => r.total),
-          backgroundColor: PALETTE.slice(0, activityBars.length),
+          data: chartBars.map(r => r.total),
+          backgroundColor: chartBars.map((r, i) => r.info ? '#7b82a6' : PALETTE[i % PALETTE.length]),
           borderWidth: 0,
           borderRadius: 5
         }]
@@ -1227,9 +1238,12 @@ function buildDashboard(data, schedData = [], tuData = []) {
     </tr></thead><tbody>
     ${rows.map((r, ri) => {
       const isUnassigned = r.activity === 'Unassigned';
-      const rowStyle = isUnassigned ? ' style="background:rgba(94,108,180,0.12);border-top:1px solid var(--border)"' : '';
+      const rowStyle = isUnassigned ? ' style="background:rgba(94,108,180,0.12);border-top:1px solid var(--border)"'
+        : r.info ? ' style="opacity:.75;font-style:italic"' : '';
+      const note = isUnassigned ? '(Dashboard &lsquo;Unallocated&rsquo;)'
+        : r.info ? '(already counted in training days &mdash; not in totals)' : '';
       return `<tr${rowStyle}>
-      <td>${r.activity}${isUnassigned ? ' <span style="font-size:.7rem;color:var(--muted);font-style:italic">(Dashboard &lsquo;Unallocated&rsquo;)</span>' : ''}</td>
+      <td>${r.activity}${note ? ` <span style="font-size:.7rem;color:var(--muted);font-style:italic">${note}</span>` : ''}</td>
       ${actTrainers.map(t => barCell(r[t], rowMaxes[ri])).join('')}
       <td style="text-align:center;color:var(--accent);font-weight:600">${r.total}</td>
     </tr>`;

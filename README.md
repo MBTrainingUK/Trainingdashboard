@@ -25,11 +25,12 @@ Use the **User Manual** button in the dashboard for a full explanation of every 
 
 ## Sheets it reads from the workbook
 
-- `Dashboard (2026)`
-- `Room Utilisation (2026)`
-- `Trainer Utilisation (2026)`
+- `Dashboard (2026)`: required
+- `Room Utilisation (2026)`: required
+- `Trainer Utilisation (2026)`: YTD activities and annual leave
+- `Schedule 2026`: weekly room heatmap, unique courses, Trainer Duties, Second Trainer and TW5
 
-The sheet names must match. If a sheet is renamed in the workbook, the dashboard won't find it.
+The sheet names must match exactly. If either required sheet is missing or renamed, the dashboard won't load. If one of the others is missing, the parts that depend on it will be empty.
 
 ## Files
 

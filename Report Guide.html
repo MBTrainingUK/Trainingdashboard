@@ -171,9 +171,9 @@
   <h1>Training Dashboard<br>User Guide</h1>
   <div class="subtitle">How to use the report, read the figures,<br>and understand each chart and table</div>
   <div class="meta">
-    Report file: <strong>report-viewer-v2.html</strong>&nbsp;&nbsp;·&nbsp;&nbsp;
-    Data source: TechnicalTrainingSchedule_2026.xlsx&nbsp;&nbsp;·&nbsp;&nbsp;
-    Guide revised: May 2026
+    Dashboard: <strong>mbtraininguk.github.io/Trainingdashboard</strong>&nbsp;&nbsp;·&nbsp;&nbsp;
+    Data source: Technical Training Schedule 2026 workbook&nbsp;&nbsp;·&nbsp;&nbsp;
+    Guide revised: November 2026
   </div>
 </div>
 
@@ -183,165 +183,188 @@
   <!-- ─── 1. Overview ─── -->
   <h2>1. Overview</h2>
   <p>
-    The Training Dashboard is a single HTML file that reads the master Excel workbook and produces
-    interactive charts and tables. It runs entirely in your browser — no server, no installation.
-    All calculations happen live from the data in the file you drop in.
+    The Training Dashboard reads the Technical Training Schedule Excel workbook and turns it into
+    interactive charts and tables. It runs entirely in your browser. There's no server and nothing
+    to install, and all the figures are worked out live from the file you load.
   </p>
+  <p>It has three tabs:</p>
+  <ul>
+    <li><strong>Dashboard</strong>: trainer days against target, and how trainers' time is split between training, other activities and unassigned days</li>
+    <li><strong>Room Utilisation</strong>: how well the training rooms are booked against the 66% target</li>
+    <li><strong>Course Fill</strong>: how full PC and Van courses are against the 85% target, from a separate Course Fill report</li>
+  </ul>
 
   <div class="callout">
     <strong>What you need</strong>
-    A modern browser (Chrome, Edge, or Firefox) and the current copy of
-    <strong>TechnicalTrainingSchedule_2026.xlsx</strong>.
-    No internet connection is required after the page first loads.
+    Chrome, Edge or Firefox, and the current copy of the <strong>Technical Training Schedule 2026</strong> workbook (<code>.xlsx</code>).
+    For the Course Fill tab you also need one or more <strong>Course Fill / Performance Report</strong> files.
   </div>
 
   <h3>Sheets used from the workbook</h3>
   <table>
     <thead><tr><th>Sheet name</th><th>What it provides</th></tr></thead>
     <tbody>
-      <tr><td><strong>Dashboard (2026)</strong></td><td>Monthly trainer training days, cumulative YTD days, and per-trainer targets</td></tr>
-      <tr><td><strong>Schedule 2026</strong></td><td>Day-by-day schedule — used to count course activities, other activities, and unassigned days for each trainer</td></tr>
-      <tr><td><strong>Room Utilisation (2026)</strong></td><td>Booked and available days per room per month — drives all room KPIs, charts and tables</td></tr>
-      <tr><td><strong>Rooms (2026)</strong></td><td>Weekly room booking heatmap (52 weeks)</td></tr>
+      <tr><td><strong>Dashboard (2026)</strong> <em>(required)</em></td><td>Monthly trainer days, each trainer's cumulative target, the YTD total, and the full-year Other Activities and Unallocated figures</td></tr>
+      <tr><td><strong>Room Utilisation (2026)</strong> <em>(required)</em></td><td>Booked and unallocated days per room per month. Drives the room KPIs, charts and tables</td></tr>
+      <tr><td><strong>Trainer Utilisation (2026)</strong></td><td>Monthly activity and unallocated days per trainer (used for the YTD view of Other Activities), and annual leave (shown as Holiday)</td></tr>
+      <tr><td><strong>Schedule 2026</strong></td><td>The day-by-day schedule. Used for the weekly room heatmap, unique courses per trainer, Trainer Duties and Second Trainer days, and TW5 bookings</td></tr>
     </tbody>
   </table>
+  <div class="callout warn">
+    <strong>Sheet names must match exactly</strong>
+    If <strong>Dashboard (2026)</strong> or <strong>Room Utilisation (2026)</strong> is missing or renamed, the dashboard
+    won't load and shows a message. If one of the other two is missing, the dashboard still loads, but the parts
+    that depend on it will be empty or less detailed.
+  </div>
 
   <!-- ─── 2. Loading the data ─── -->
   <h2>2. Loading the data</h2>
   <ol>
-    <li>Open <strong>report-viewer-v2.html</strong> in your browser.</li>
-    <li>You will see a drop zone. Either <strong>drag and drop</strong> the Excel file onto it, or click <strong>"Browse"</strong> to select it from your computer.</li>
-    <li>The dashboard builds automatically — this typically takes 1–2 seconds.</li>
-    <li>To load a different file, click <strong>"Load New File"</strong> (top-right of the page) to reset and start again.</li>
+    <li>Open <strong>https://mbtraininguk.github.io/Trainingdashboard/</strong> in your browser.</li>
+    <li>You'll see a drop zone. <strong>Drag and drop</strong> the workbook onto it, or click it to browse for the file.</li>
+    <li>The dashboard builds automatically, usually in a second or two.</li>
+    <li>To load a different file, click <strong>"Load different file"</strong> at the top right.</li>
   </ol>
+  <p>The <strong>User Manual</strong> button at the top of the dashboard opens this guide.</p>
 
   <div class="callout tip">
-    <strong>Tip — keeping the file fresh</strong>
-    The dashboard always reads from the file you drop in. To see the latest figures, simply save
-    the Excel workbook and reload the HTML page, then drop the file again.
+    <strong>Tip: keeping the figures up to date</strong>
+    The dashboard only reads the file you drop in. To see the latest figures, save the workbook,
+    click <strong>"Load different file"</strong> and drop it in again.
   </div>
+
+  <h3>YTD and Full Year</h3>
+  <p>
+    The Dashboard and Room Utilisation tabs each have a toggle at the top. It switches that tab's KPIs,
+    charts and tables between:
+  </p>
+  <ul>
+    <li><strong>YTD (Jan – end of the current month)</strong>: January up to and including the current month. This is the default when the file loads</li>
+    <li><strong>Full Year</strong>: all 12 months, including planned future months</li>
+  </ul>
 
   <!-- ─── 3. Dashboard tab ─── -->
   <h2 class="pb">3. Dashboard Tab</h2>
-  <p>
-    The Dashboard tab shows trainer performance for the year. A <strong>YTD / Full Year toggle</strong>
-    at the top of the page switches every chart, table, and KPI between:
-  </p>
-  <ul>
-    <li><strong>Jan – End of Month (YTD)</strong> — only the months that have passed so far this year (up to the last complete month)</li>
-    <li><strong>Full Year</strong> — all 12 months of planned data</li>
-  </ul>
 
   <h3>3.1 Utilisation KPIs</h3>
-  <p>Five summary boxes sit at the top of the Dashboard tab:</p>
+  <p>Five summary boxes sit at the top of the tab:</p>
 
   <div class="stat-row avoid-break">
     <div class="stat-card blue">
       <div class="label">Team Training Days</div>
       <div class="value">—</div>
-      <div class="note">Total days across all trainers. Sub-label shows vs target.</div>
+      <div class="note">Total trainer days, with average per trainer and % of target</div>
     </div>
     <div class="stat-card green">
       <div class="label">Training %</div>
       <div class="value">—</div>
-      <div class="note">Training days ÷ total available days</div>
+      <div class="note">Training days ÷ total days</div>
     </div>
     <div class="stat-card orange">
-      <div class="label">Activities %</div>
+      <div class="label">Other Activities %</div>
       <div class="value">—</div>
-      <div class="note">Other (non-training) activities ÷ total available days</div>
+      <div class="note">Non-training activity days ÷ total days</div>
     </div>
     <div class="stat-card red">
       <div class="label">Unassigned %</div>
       <div class="value">—</div>
-      <div class="note">Days with no booking ÷ total available days</div>
+      <div class="note">Days with no booking ÷ total days</div>
     </div>
     <div class="stat-card blue">
       <div class="label">Overall Utilised %</div>
       <div class="value">—</div>
-      <div class="note">Training + Activities days ÷ total available</div>
+      <div class="note">Training + Other Activities ÷ total days</div>
     </div>
   </div>
 
   <table class="avoid-break">
     <thead><tr><th>KPI</th><th>How it is calculated</th></tr></thead>
     <tbody>
-      <tr><td><strong>Team Training Days</strong></td><td>Sum of all trainer training days in the selected period. Sub-line shows difference vs a target of <strong>12.5 days per trainer per month</strong>.</td></tr>
-      <tr><td><strong>Training %</strong></td><td>Training days ÷ (Training + Activities + Unassigned days) × 100. Excludes weekends and bank holidays.</td></tr>
-      <tr><td><strong>Activities %</strong></td><td>Other activities (anything that is not a training course or unassigned) ÷ total available days × 100.</td></tr>
-      <tr><td><strong>Unassigned %</strong></td><td>Days counted as unassigned in the Schedule sheet ÷ total available days × 100.</td></tr>
-      <tr><td><strong>Overall Utilised %</strong></td><td>(Training + Activities) ÷ total available days × 100. This is the headline productivity figure.</td></tr>
+      <tr><td><strong>Team Training Days</strong></td><td>Sum of all trainers' days in the selected period, taken from the Dashboard sheet. The sub-lines show the number of trainers, the average per trainer, and the total as a % of the team target (green at 100% or more, red below).</td></tr>
+      <tr><td><strong>Training %</strong></td><td>Training days ÷ total days × 100. <em>Total days</em> = training days + other activity days + unassigned days.</td></tr>
+      <tr><td><strong>Other Activities %</strong></td><td>All non-training activity days (see 3.6) ÷ total days × 100.</td></tr>
+      <tr><td><strong>Unassigned %</strong></td><td>Days marked Unallocated ÷ total days × 100.</td></tr>
+      <tr><td><strong>Overall Utilised %</strong></td><td>Training % + Other Activities %. This is the headline productivity figure.</td></tr>
     </tbody>
   </table>
 
   <h3>3.2 Trainer Overview cards</h3>
   <p>
-    One card per trainer shows their total training days in the selected period, a progress bar against
-    their cumulative target, and a colour-coded status:
+    One card per trainer. Each shows the trainer's YTD days and full-year days, a progress bar against their
+    YTD target, how many days ahead or behind target they are, and the number of <strong>unique courses</strong>
+    they deliver in the Schedule sheet. The bar and figure are colour-coded by % of YTD target:
   </p>
   <div class="dot-row">
-    <span><span class="dot green"></span>On or above target</span>
-    <span><span class="dot amber"></span>Within 10 % below target</span>
-    <span><span class="dot red"></span>More than 10 % below target</span>
+    <span><span class="dot green"></span>80% or more</span>
+    <span><span class="dot amber"></span>50–79%</span>
+    <span><span class="dot red"></span>Below 50%</span>
   </div>
-  <p>The <strong>cumulative target</strong> is <strong>12.5 days × number of months in the period</strong>.</p>
-
-  <h3>3.3 Monthly Training Days chart (bar)</h3>
   <p>
-    A grouped bar chart with one bar per trainer per month. A dashed horizontal line marks the
-    <strong>monthly target of 12.5 days</strong>. Hovering over a bar shows exact values.
+    Each trainer's target comes from the <strong>Cum' Training Days Target</strong> column on the Dashboard
+    sheet. If a trainer has no target on the Dashboard sheet, the card says so.
+    The cards always show YTD, whatever the toggle is set to.
   </p>
 
-  <h3>3.4 Cumulative Training Days chart (line)</h3>
+  <h3>3.3 Trainer Days — Monthly chart (bar)</h3>
   <p>
-    Running total of training days for each trainer across the year. A diagonal line shows the
-    target ramp (12.5 days per month). Trainers above the line are ahead of target; below the line
-    means behind.
+    A grouped bar chart with one bar per trainer per month, labelled with the number of days. A dashed
+    yellow line marks the <strong>12.5 days per month</strong> guide target.
   </p>
 
-  <h3>3.5 Monthly Training Days table</h3>
+  <h3>3.4 Cumulative YTD vs Target chart (line)</h3>
+  <p>The running total for the whole team across the year, with three lines:</p>
+  <ul>
+    <li><strong>Team Target</strong> (dashed yellow): the cumulative team target from the Dashboard sheet</li>
+    <li><strong>Total Team Delivered</strong> (blue): the cumulative days delivered. Each point is labelled with the gap to target, for example <em>+6d</em> in green or <em>−4d</em> in red</li>
+    <li><strong>Projected Trend</strong> (dashed purple): carries the average monthly rate so far forward to the end of the period</li>
+  </ul>
+
+  <h3>3.5 Monthly Trainer Summary table</h3>
   <p>
-    A row per month, a column per trainer. Each cell shows the number of training days that month.
-    A coloured dot in each cell indicates performance against the <strong>12.5-day monthly target</strong>:
+    One row per month, with a column for the team target, a column per trainer, and the team total.
+    A coloured dot shows how each trainer did against <strong>their own target for that month</strong>:
   </p>
   <div class="dot-row">
-    <span><span class="dot green"></span>≥ 12.5 days</span>
-    <span><span class="dot amber"></span>8–12.4 days</span>
-    <span><span class="dot red"></span>&lt; 8 days</span>
-    <span><span class="dot grey"></span>No data / not applicable</span>
+    <span><span class="dot green"></span>100% or more</span>
+    <span><span class="dot" style="background:#f5c842"></span>70–99%</span>
+    <span><span class="dot amber"></span>50–69%</span>
+    <span><span class="dot red"></span>Below 50%</span>
+    <span><span class="dot grey"></span>No target set</span>
   </div>
-  <p>
-    The <strong>Cumulative</strong> column on the right shows the running total to date and is
-    highlighted in navy to distinguish it from individual months.
-  </p>
+  <p>A dash (—) means no days that month. In Full Year view, a <strong>YTD TOTAL</strong> row is added at the bottom.</p>
 
-  <h3 class="pb">3.6 Activities chart and table</h3>
+  <h3 class="pb">3.6 Other Activities chart and table</h3>
   <p>
-    A stacked bar chart shows, for each trainer, how their working days in the period are split
-    between <strong>Training Courses</strong>, <strong>Other Activities</strong>, and
-    <strong>Unassigned</strong> days. The data comes directly from the Schedule 2026 sheet —
-    each non-weekend, non-bank-holiday day is categorised by its cell value.
+    A horizontal bar chart showing the total days spent on each non-training activity, with each one's share of
+    all days (training + activities + unassigned). The table below breaks this down per trainer.
   </p>
   <table class="avoid-break">
-    <thead><tr><th>Category</th><th>What counts as this</th></tr></thead>
+    <thead><tr><th>Item</th><th>Where it comes from</th></tr></thead>
     <tbody>
-      <tr><td><strong>Training Courses</strong></td><td>Cells whose value starts with a letter followed by a digit (e.g. <em>A1, B2, C301</em>) — standard MB course codes</td></tr>
-      <tr><td><strong>Other Activities</strong></td><td>Any other text that is not blank, "Weekend", or "Bank Holiday" (e.g. admin, events, prep days)</td></tr>
-      <tr><td><strong>Unassigned</strong></td><td>Empty or explicitly "Unassigned" cells on working days</td></tr>
+      <tr><td><strong>Activities</strong> (Development, Set-Up, Administration, Set-Down, CPD, Course Prep, TTT, Event, Sick, Leave - Other and so on)</td><td>Full Year: the <em>Other Activities (12 month view)</em> table on the Dashboard sheet. YTD: the monthly blocks on the Trainer Utilisation sheet</td></tr>
+      <tr><td><strong>Holiday</strong></td><td>The Annual Leave columns on the Trainer Utilisation sheet</td></tr>
+      <tr><td><strong>Trainer Duties</strong></td><td>Counted day by day from the Schedule 2026 sheet</td></tr>
+      <tr><td><strong>Unassigned</strong></td><td>The Unallocated row (Dashboard sheet for Full Year, Trainer Utilisation sheet for YTD)</td></tr>
+      <tr><td><strong>Second Trainer (in training)</strong></td><td>Counted from the Schedule 2026 sheet. <strong>For information only.</strong> These days are already included in trainer days, so they're shown in italics and left out of all totals and percentages</td></tr>
     </tbody>
   </table>
-  <p>
-    A summary table below the chart lists exact day counts per trainer for each category and
-    shows the percentage of total days each represents.
-  </p>
 
-  <!-- ─── 4. Rooms tab ─── -->
-  <h2>4. Rooms Tab</h2>
+  <div class="callout">
+    <strong>Trainers who joined or left during the year</strong>
+    Trainers are only counted for the months they were in post. For example, Victor is counted up to
+    8 July 2026 and James from 14 September 2026. These dates are set in the dashboard itself, so any new
+    starters or leavers need adding there.
+  </div>
+
+  <!-- ─── 4. Room Utilisation tab ─── -->
+  <h2>4. Room Utilisation Tab</h2>
   <p>
-    The Rooms tab covers utilisation of the six training rooms:
-    <strong>TW1+Studio, TW2, TW3, TW10, TW11, TR1</strong>.
-    A <strong>Jan – End of Month / Full Year toggle</strong> at the top of the tab updates the
-    KPI boxes, charts, and detail tables simultaneously. The heatmap always shows the full year.
+    This tab covers the training rooms <strong>TW1+Studio, TW2, TW3, TW5, TW10, TW11 and TR1</strong>.
+    The YTD / Full Year toggle updates the KPIs, charts and tables. The heatmap always shows the full year.
+  </p>
+  <p>
+    TW5 isn't in the workbook's room summaries, so the dashboard counts its bookings from the Schedule 2026
+    sheet. It only appears if it has bookings.
   </p>
 
   <h3>4.1 Room KPIs</h3>
@@ -371,171 +394,217 @@
   <table class="avoid-break">
     <thead><tr><th>KPI</th><th>How it is calculated</th></tr></thead>
     <tbody>
-      <tr><td><strong>Overall Utilisation</strong></td><td>Total booked days across all rooms ÷ total available (booked + unallocated) days × 100. Compared against a <strong>66% target</strong>.</td></tr>
-      <tr><td><strong>Total Booked Days</strong></td><td>Sum of booked days across all rooms in the selected period. Sub-line shows how many days above or below the 66% target.</td></tr>
-      <tr><td><strong>Best Room</strong></td><td>The room with the highest utilisation percentage in the selected period.</td></tr>
-      <tr><td><strong>Worst Room</strong></td><td>The room with the lowest utilisation percentage in the selected period.</td></tr>
+      <tr><td><strong>Overall Utilisation</strong></td><td>Booked days across all rooms ÷ (booked + unallocated days) × 100, compared against the <strong>66% target</strong>.</td></tr>
+      <tr><td><strong>Total Booked Days</strong></td><td>Booked days across all rooms in the period. The sub-line shows the target (66% of available days) and how many days above or below it.</td></tr>
+      <tr><td><strong>Best Room</strong></td><td>The room with the highest utilisation % in the period.</td></tr>
+      <tr><td><strong>Worst Room</strong></td><td>The room with the lowest utilisation % in the period.</td></tr>
     </tbody>
   </table>
 
   <h3>4.2 Weekly Room Booking Heatmap</h3>
   <p>
-    A grid covering all 52 weeks of the year. Rows are rooms; columns are weeks.
-    Each cell shows how many days that room was booked in that week. Deeper colour = more bookings.
-    The <strong>TOTAL</strong> row at the bottom (navy background) shows the combined bookings
-    across all rooms for each week.
+    A grid with one row per week and one column per room, read from the weekly room block on the
+    Schedule 2026 sheet. Each cell shows the number of <strong>unused (unbooked) days</strong> that room had that week, from 0 to 5:
   </p>
-  <p>The <strong>Cumulative</strong> column on the right gives each room's running total for the full year.</p>
-
-  <h3>4.3 Room Utilisation — Booked vs Available chart (bar)</h3>
+  <div class="dot-row">
+    <span><span class="dot green"></span>0: fully booked</span>
+    <span><span class="dot" style="background:#ffeb84"></span>Part booked</span>
+    <span><span class="dot red"></span>5: empty all week</span>
+  </div>
   <p>
-    A horizontal stacked bar chart with one bar per room. The bar is split into
-    <strong>Booked days</strong> (blue) and <strong>Unallocated days</strong> (grey).
-    A dashed vertical line marks the <strong>66% utilisation target</strong>.
+    The <strong>Total</strong> column gives the unused days across all rooms that week, and <strong>Cumulative</strong>
+    gives the running total for the year. The navy <strong>TOTAL</strong> row at the top shows each room's unused days for the whole year.
   </p>
 
-  <h3>4.4 Monthly Utilisation % by Room chart (line)</h3>
+  <h3>4.3 Room Utilisation — Booked vs available chart (bar)</h3>
   <p>
-    A multi-line chart showing each room's utilisation percentage month by month.
-    A dashed line marks the <strong>66% target</strong>. Useful for spotting seasonal patterns
-    or rooms that consistently under- or over-perform.
+    A stacked bar per room, split into <strong>Booked</strong> (blue) and <strong>Unallocated</strong> (grey) days.
+    The booked part is labelled with days and %. A dashed yellow line marks 66% of the largest room's available days.
+  </p>
+
+  <h3>4.4 Monthly utilisation % by room chart (bar)</h3>
+  <p>
+    A grouped bar chart showing each room's utilisation % month by month, with a dashed line at the
+    <strong>66% target</strong>. Months with no bookings in any room are left out. It's useful for spotting
+    seasonal patterns or rooms that are always under- or over-used.
   </p>
 
   <h3>4.5 Room Detail table</h3>
-  <p>
-    One row per room. Columns show: Booked days, Available days, Utilisation %, and the
-    variance above or below the 66% target. Rows are ordered by the standard room sequence
-    (TW1+Studio → TW2 → TW3 → TW10 → TW11 → TR1).
-  </p>
+  <p>One row per room, plus a TOTAL row. The columns are Booked Days, Unallocated days, Utilisation % and a progress bar. Colours:</p>
+  <div class="dot-row">
+    <span><span class="dot green"></span>70% or more</span>
+    <span><span class="dot amber"></span>40–69%</span>
+    <span><span class="dot red"></span>Below 40%</span>
+  </div>
 
   <h3>4.6 Monthly Booking Detail table</h3>
   <p>
-    One row per month. Columns show total booked days across all rooms, total available days,
-    and the combined utilisation % for that month. Useful for seeing which months are busiest
-    and which have the most slack.
+    One row per room, with a pair of columns for each month: <strong>Booked</strong> and <strong>Avail</strong>
+    (unallocated) days. The booked figure uses the same colours as the Room Detail table.
   </p>
 
-  <!-- ─── 5. Targets reference ─── -->
-  <h2 class="pb">5. Targets Quick Reference</h2>
+  <!-- ─── 5. Course Fill tab ─── -->
+  <h2 class="pb">5. Course Fill Tab</h2>
+  <p>
+    This tab uses a separate file: the <strong>Course Fill / Performance Report</strong> (<code>.xlsx</code>). Drop
+    one or more files onto the tab's own drop zone. If you drop several years at once, each year gets its own
+    section so you can compare them. The newest year is shown first.
+  </p>
+
+  <h3>What's counted</h3>
+  <ul>
+    <li>Rows where <strong>Area</strong> starts with "Technical" and includes PC or Van</li>
+    <li>Classes with a <strong>Class Status</strong> of Completed or Released</li>
+    <li>Fill % = students (<strong>Stud Ct</strong>) ÷ maximum places (<strong>Max Ct</strong>) × 100, grouped by course start month</li>
+  </ul>
+  <p>
+    The file can have one sheet per year (named "2025", "2026" and so on) or a single sheet. A single sheet is
+    split by year using the start dates. The sheet must have a header row containing <strong>Template Code</strong>.
+  </p>
+
+  <h3>5.1 Fill KPIs</h3>
+  <p>
+    Four boxes for the newest year: <strong>PC Fill Rate</strong>, <strong>VN Fill Rate</strong>,
+    <strong>PC + VN Combined</strong> (each with seats filled and the difference from target) and
+    <strong>Target (Calex KPI)</strong>, which shows the 85% target and the previous years' PC and VN rates.
+  </p>
+
+  <h3>5.2 Chart and table per year</h3>
+  <p>
+    For each year, a bar chart shows PC, VN and combined fill % by month, with a dashed line at <strong>85%</strong>.
+    The table underneath gives the same figures with a TOTAL column. Colours:
+  </p>
+  <div class="dot-row">
+    <span><span class="dot green"></span>85% or more</span>
+    <span><span class="dot amber"></span>75–84%</span>
+    <span><span class="dot red"></span>Below 75%</span>
+  </div>
+
+  <!-- ─── 6. Targets reference ─── -->
+  <h2>6. Targets Quick Reference</h2>
   <table class="avoid-break">
     <thead><tr><th>Metric</th><th>Target</th><th>Where applied</th></tr></thead>
     <tbody>
-      <tr><td>Trainer monthly training days</td><td><strong>12.5 days / month</strong></td><td>Monthly bar chart dashed line, trainer card progress bar, monthly table dots, KPI sub-label</td></tr>
-      <tr><td>Trainer cumulative target</td><td><strong>12.5 × months elapsed</strong></td><td>Cumulative line chart, trainer card % badge</td></tr>
-      <tr><td>Room utilisation</td><td><strong>66%</strong> of available days booked</td><td>Room KPIs, booked vs available bar, monthly % line, room detail table variance column</td></tr>
+      <tr><td>Trainer days</td><td><strong>Per-trainer cumulative target</strong> from the Dashboard sheet</td><td>Trainer cards, Team Training Days KPI, Cumulative chart, Monthly Trainer Summary dots</td></tr>
+      <tr><td>Monthly trainer days (guide line)</td><td><strong>12.5 days / month</strong></td><td>Dashed line on the Trainer Days — Monthly chart</td></tr>
+      <tr><td>Room utilisation</td><td><strong>66%</strong> of available days booked</td><td>Room KPIs, booked vs available chart, monthly utilisation % chart</td></tr>
+      <tr><td>Course fill</td><td><strong>85%</strong> (Calex KPI)</td><td>Course Fill KPIs, charts and tables</td></tr>
     </tbody>
   </table>
 
-  <!-- ─── 6. Colour & symbol guide ─── -->
-  <h2>6. Colour &amp; Symbol Guide</h2>
+  <!-- ─── 7. Colour & symbol guide ─── -->
+  <h2>7. Colour &amp; Symbol Guide</h2>
   <table class="avoid-break">
     <thead><tr><th>Colour / Symbol</th><th>Meaning</th></tr></thead>
     <tbody>
-      <tr><td><span class="dot green"></span> Green dot / bar</td><td>At or above target</td></tr>
-      <tr><td><span class="dot amber"></span> Amber dot / bar</td><td>Close to target (within 10% below)</td></tr>
-      <tr><td><span class="dot red"></span> Red dot / bar</td><td>Below target by more than 10%</td></tr>
-      <tr><td><span class="dot grey"></span> Grey / muted</td><td>No data, not applicable, or future month with no entries</td></tr>
-      <tr><td>Dashed line on charts</td><td>Target value (12.5 days or 66% as applicable)</td></tr>
-      <tr><td>Navy highlight (Cumulative column)</td><td>Running total — not a monthly figure</td></tr>
-      <tr><td>Jan – End of Month pill</td><td>Current YTD period (e.g. "Jan – 30 Apr 2026")</td></tr>
-      <tr><td>Full Year pill</td><td>All 12 months of 2026 data</td></tr>
+      <tr><td><span class="dot green"></span> Green</td><td>On or above target</td></tr>
+      <tr><td><span class="dot amber"></span> Yellow / orange</td><td>Below target but close. The exact bands vary by section and are given in each section above</td></tr>
+      <tr><td><span class="dot red"></span> Red</td><td>Well below target</td></tr>
+      <tr><td><span class="dot grey"></span> Grey / muted</td><td>No data or no target set</td></tr>
+      <tr><td>Dashed yellow line on charts</td><td>Target (12.5 days, 66% or 85%, as applicable)</td></tr>
+      <tr><td>Heatmap: green → red</td><td>Room unused days: green is fully booked, red is empty. This is the opposite of what you might expect, so take care</td></tr>
+      <tr><td>Italic, faded row</td><td>Information only (Second Trainer), not counted in totals</td></tr>
+      <tr><td>Period pill (e.g. "YTD (Jan – end of Nov)")</td><td>The period the section is currently showing</td></tr>
     </tbody>
   </table>
 
-  <!-- ─── 7. Security & Data Privacy ─── -->
-  <h2>7. Security &amp; Data Privacy</h2>
+  <!-- ─── 8. Security & Data Privacy ─── -->
+  <h2>8. Security &amp; Data Privacy</h2>
 
   <div class="callout tip">
     <strong>Your data never leaves your device</strong>
-    The dashboard is a self-contained HTML file. It has no server, no back-end, and makes no
-    network requests of any kind after the initial page load. Everything — file reading,
-    calculations, charts — runs entirely inside your browser on your own machine.
+    The dashboard page is served from GitHub Pages, but the files you load are never uploaded. Reading the file,
+    the calculations and the charts all happen inside your browser on your own computer.
   </div>
 
   <h4>How the file is read</h4>
   <p>
-    When you drop the Excel workbook onto the dashboard, the browser reads it using a
-    JavaScript library (<strong>SheetJS</strong>) that processes the file locally in memory.
-    The spreadsheet data is never uploaded, transmitted, or stored anywhere outside your browser tab.
-    Closing the tab or refreshing the page discards all loaded data immediately.
+    When you drop a workbook onto the dashboard, the browser reads it locally in memory using a
+    JavaScript library (<strong>SheetJS</strong>). The spreadsheet data isn't sent or stored anywhere outside your
+    browser tab. Closing or refreshing the tab clears it straight away.
   </p>
 
-  <h4>No internet connection required</h4>
+  <h4>Internet connection</h4>
   <p>
-    After the HTML file has been opened once (which loads Chart.js and SheetJS from a CDN),
-    no further internet access is needed. If you want to use it in a fully offline environment,
-    the libraries can be embedded directly into the file — speak to your dashboard administrator.
+    You need an internet connection to open the page, which also loads the Chart.js and SheetJS libraries from
+    a CDN. After that, loading a file doesn't send anything over the internet.
   </p>
 
   <h4>No cookies, no tracking, no login</h4>
   <p>
-    The dashboard does not set any cookies, does not use local storage, and has no analytics or
-    tracking code. It does not require a login and holds no user credentials.
+    The dashboard doesn't set cookies, doesn't save anything in your browser and has no analytics or tracking.
+    It doesn't need a login.
   </p>
 
-  <h4>Sharing the report</h4>
+  <h4>Sharing results</h4>
   <p>
-    Because the HTML file itself contains no data (data only exists in memory while a file is
-    loaded), you can share <strong>report-viewer-v2.html</strong> freely — it is just a viewer.
-    If you want to share results, use your browser's <strong>Print → Save as PDF</strong> function
-    to create a snapshot. The PDF will contain whatever is currently displayed on screen and
-    can then be distributed through your normal secure channels (email, SharePoint, etc.).
+    The dashboard page holds no data, so the link can be shared freely. It's just a viewer. To share results,
+    use your browser's <strong>Print → Save as PDF</strong> to make a snapshot of what's on screen, then send it
+    through your normal secure channels (email, SharePoint and so on).
   </p>
 
-  <h4>Sensitive data guidance</h4>
+  <h4>Sensitive data</h4>
   <p>
-    The source Excel workbook (<strong>TechnicalTrainingSchedule_2026.xlsx</strong>) contains
-    employee scheduling information. Handle and store this file in line with your organisation's
-    data handling policy. Do not leave it in publicly accessible locations (e.g. a shared desktop
-    or an unprotected shared drive). The dashboard HTML file itself is safe to share.
+    The Technical Training Schedule workbook contains employee scheduling information. Store and handle it in
+    line with your organisation's data handling policy, and don't leave it anywhere publicly accessible.
   </p>
 
-  <!-- ─── 8. FAQ ─── -->
-  <h2>8. Common Questions</h2>
+  <!-- ─── 9. FAQ ─── -->
+  <h2>9. Common Questions</h2>
 
-  <h4>Why are some months blank in charts?</h4>
+  <h4>Why are some months blank or low in the charts?</h4>
   <p>
-    Future months appear with zero or no values because the Schedule sheet has not been filled in yet.
-    This is expected — data will populate as the year progresses and the file is updated.
+    In Full Year view, future months only show what has been planned so far. They fill in as the year goes on
+    and the workbook is updated.
   </p>
 
-  <h4>What does "End of Month" mean in the YTD label?</h4>
+  <h4>What period does YTD cover?</h4>
   <p>
-    The dashboard looks at today's date and counts all complete months up to and including the
-    most recently finished month. For example, if today is 12 May 2026, the YTD period covers
-    January through April 2026 (the last complete month).
+    January up to and including the <strong>current month</strong>, based on today's date. For example, on
+    17 November 2026, YTD covers January to the end of November 2026, so the current month is included even
+    though it isn't finished.
   </p>
 
-  <h4>Why do the trainer cards show a different number from the monthly table total?</h4>
+  <h4>Why don't the Second Trainer days add to the totals?</h4>
   <p>
-    If the YTD / Full Year toggle is on different settings between sections — it isn't, the toggle
-    controls all sections together. If there is still a discrepancy, check that the Dashboard (2026)
-    sheet and the Schedule 2026 sheet are both up to date in the Excel file.
+    Second Trainer days are already counted as trainer days on the Dashboard sheet. They're shown in Other
+    Activities for information only, so they aren't counted twice.
+  </p>
+
+  <h4>I get "Could not find Dashboard (2026) or Room Utilisation (2026) sheets"</h4>
+  <p>
+    You've loaded the wrong file, or those sheets have been renamed. Check that you're using the current
+    Technical Training Schedule workbook and that the sheet names match those in section 1 exactly.
+  </p>
+
+  <h4>The heatmap says "No Schedule 2026 sheet found"</h4>
+  <p>
+    The workbook doesn't have a sheet called <strong>Schedule 2026</strong>, or it has been renamed. The rest of
+    the dashboard still works, but the heatmap, unique course counts, Trainer Duties, Second Trainer and TW5
+    need that sheet.
   </p>
 
   <h4>How do I update the data?</h4>
   <p>
-    Update the Excel workbook as normal, save it, then click <strong>"Load New File"</strong>
-    in the dashboard and drop the updated file in again. The entire dashboard rebuilds from scratch.
+    Update and save the workbook as normal, then click <strong>"Load different file"</strong> and drop it in again.
+    The whole dashboard rebuilds from scratch.
   </p>
 
-  <h4>The page looks fine but no charts appear — what's wrong?</h4>
+  <h4>The page looks fine but no charts appear. What's wrong?</h4>
   <p>
-    Make sure you are opening the HTML file in Chrome, Edge, or Firefox. Internet Explorer and
-    older browsers are not supported. Also ensure the Excel file is the correct one
-    (TechnicalTrainingSchedule_2026.xlsx) — dropping an older version will produce incorrect figures.
+    Use Chrome, Edge or Firefox. Internet Explorer and older browsers aren't supported. Also check you have an
+    internet connection, because the chart library loads when the page opens.
   </p>
 
-  <h4>Can I print this dashboard?</h4>
+  <h4>Can I print the dashboard?</h4>
   <p>
-    Yes — use your browser's <strong>File → Print</strong> (or <kbd>Ctrl + P</kbd> / <kbd>⌘ P</kbd>)
-    and select <strong>"Save as PDF"</strong>. For the best result choose landscape orientation and
-    set margins to "Minimum" or "None".
+    Yes. Use <strong>File → Print</strong> (or <kbd>Ctrl + P</kbd> / <kbd>⌘ P</kbd>) and choose
+    <strong>"Save as PDF"</strong>. Landscape with minimum margins gives the best result.
   </p>
 
   <div class="footer">
     Mercedes-Benz UK &nbsp;·&nbsp; Technical Training Department &nbsp;·&nbsp;
-    Dashboard: report-viewer-v2.html &nbsp;·&nbsp; Guide revised May 2026
+    Dashboard: mbtraininguk.github.io/Trainingdashboard &nbsp;·&nbsp; Guide revised November 2026
   </div>
 
 </div><!-- /page-wrap -->

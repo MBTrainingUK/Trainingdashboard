@@ -82,7 +82,7 @@
   }
   .callout.tip { border-color: #3ecf8e; background: #f0fdf7; }
   .callout.warn { border-color: #f5a623; background: #fffbf0; }
-  .callout strong { display: block; margin-bottom: 4px; }
+  .callout > strong:first-child { display: block; margin-bottom: 4px; }
 
   /* ── Stat cards (inline) ── */
   .stat-row {
@@ -220,7 +220,7 @@
   <!-- ─── 2. Loading the data ─── -->
   <h2>2. Loading the data</h2>
   <ol>
-    <li>Open <strong>https://mbtraininguk.github.io/Trainingdashboard/</strong> in your browser.</li>
+    <li>Open <a href="https://mbtraininguk.github.io/Trainingdashboard/"><strong>https://mbtraininguk.github.io/Trainingdashboard/</strong></a> in your browser.</li>
     <li>You'll see a drop zone. <strong>Drag and drop</strong> the workbook onto it, or click it to browse for the file.</li>
     <li>The dashboard builds automatically, usually in a second or two.</li>
     <li>To load a different file, click <strong>"Load different file"</strong> at the top right.</li>
@@ -502,7 +502,7 @@
       <tr><td><span class="dot red"></span> Red</td><td>Well below target</td></tr>
       <tr><td><span class="dot grey"></span> Grey / muted</td><td>No data or no target set</td></tr>
       <tr><td>Dashed yellow line on charts</td><td>Target (12.5 days, 66% or 85%, as applicable)</td></tr>
-      <tr><td>Heatmap: green → red</td><td>Room unused days: green is fully booked, red is empty. This is the opposite of what you might expect, so take care</td></tr>
+      <tr><td>Heatmap: green → red</td><td>Room unused days: green is fully booked, red is empty</td></tr>
       <tr><td>Italic, faded row</td><td>Information only (Second Trainer), not counted in totals</td></tr>
       <tr><td>Period pill (e.g. "YTD (Jan – end of Nov)")</td><td>The period the section is currently showing</td></tr>
     </tbody>
